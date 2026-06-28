@@ -29,3 +29,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# 内部设计文档+答案key+真实数据，不公开
+docs/

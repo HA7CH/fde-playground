@@ -289,7 +289,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   ctx.font = "9px 'Fusion Pixel','Zpix',monospace";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  const label = "WAY-WAY 货代 · 需求群";
+  const label = "WAYBOUND 货代 · 需求群";
   const tw = ctx.measureText(label).width + 12;
   ctx.fillStyle = "rgba(30,22,38,0.8)";
   ctx.fillRect(6, VH - 18, tw, 13);

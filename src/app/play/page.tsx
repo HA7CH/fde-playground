@@ -21,7 +21,7 @@ export default function Play() {
     <main className="play-root">
       <div className="play-bar">
         <Link href="/">← 退出</Link>
-        <span>WAY-WAY 货代 · 需求群</span>
+        <span>WAYBOUND 货代 · 需求群</span>
         <span style={{ opacity: 0.6 }}>session {sessionId.slice(0, 6)}</span>
       </div>
 
