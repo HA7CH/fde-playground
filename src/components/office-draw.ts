@@ -3,7 +3,7 @@ import type { PersonaId } from "@/lib/types";
 // 哑渲染层：货代办公室。老板专属玻璃办公室(右) + 开放区 11 人(主管+10 跟单/业务)。
 // 素材 16px×4，按 naturalW/4 绘制。只画 + 上报点击。
 export const VW = 480;
-export const VH = 300;
+export const VH = 288;
 const WALL_H = 32;
 const ROOM_X = 366; // 老板办公室隔断
 
@@ -50,7 +50,7 @@ function drawFloorWalls(ctx: CanvasRenderingContext2D, im: ImageMap) {
   ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.fillRect(0, 0, VW, 1);
   ctx.fillStyle = "rgba(0,0,0,0.16)"; ctx.fillRect(0, WALL_H, VW, 1);
   blitCB(ctx, im.clock, 46, 30);
-  blitCB(ctx, im.whiteboard, 120, 31);
+  blitCB(ctx, im.whiteboard, 300, 31);
 }
 
 function drawOrderBoard(ctx: CanvasRenderingContext2D, x: number, y: number) {
@@ -137,13 +137,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   const im = s.images, t = s.timeMs;
   ctx.clearRect(0, 0, VW, VH);
   drawFloorWalls(ctx, im);
-  drawOrderBoard(ctx, 232, 42);
+  drawOrderBoard(ctx, 96, 42);
   drawReception(ctx);
   drawBossRoom(ctx, im);
   // 开放区陈设
-  blitCB(ctx, im.bookshelf, 200, 120);
+  blitCB(ctx, im.bookshelf, 336, 118);
+  blitCB(ctx, im.coffee, 300, 118);
   blitCB(ctx, im.plant_large, 16, VH);
-  blitCB(ctx, im.coffee, 340, 120);
 
   const pods = [...s.slots].sort((a, b) => a.y - b.y);
   const frame = t % 760 < 380 ? "0" : "1";

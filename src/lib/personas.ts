@@ -171,9 +171,7 @@ function distractor(id: string, sprite: "clerk" | "sales", name: string): Person
 
 const DISTRACTORS: Persona[] = [
   distractor("c1", "clerk", "小娟"), distractor("c2", "clerk", "阿杰"),
-  distractor("c3", "clerk", "丽丽"), distractor("c4", "clerk", "老周"),
   distractor("s1", "sales", "阿凯"), distractor("s2", "sales", "小薇"),
-  distractor("s3", "sales", "大刘"), distractor("s4", "sales", "Tina"),
 ];
 
 /** 全部 NPC（key + 干扰）。getPersona 从这里查。 */
@@ -186,8 +184,8 @@ export const NPCS: Record<string, Persona> = {
 export interface RosterEntry { id: string; x: number; y: number; room?: boolean; }
 export const ROSTER: RosterEntry[] = [
   { id: "boss", x: 426, y: 176, room: true },
-  { id: "manager", x: 96, y: 122 },
-  // 开放区 2 排 × 5
-  { id: "c1", x: 64, y: 184 }, { id: "s1", x: 134, y: 184 }, { id: "clerk", x: 204, y: 184 }, { id: "s2", x: 274, y: 184 }, { id: "c2", x: 344, y: 184 },
-  { id: "sales", x: 64, y: 262 }, { id: "c3", x: 134, y: 262 }, { id: "s3", x: 204, y: 262 }, { id: "c4", x: 274, y: 262 }, { id: "s4", x: 344, y: 262 },
+  { id: "manager", x: 200, y: 122 },
+  // 开放区 2×3（婷婷/小敏=key 混进 4 个干扰里）
+  { id: "c1", x: 90, y: 178 }, { id: "clerk", x: 200, y: 178 }, { id: "s1", x: 310, y: 178 },
+  { id: "s2", x: 90, y: 258 }, { id: "c2", x: 200, y: 258 }, { id: "sales", x: 310, y: 258 },
 ];

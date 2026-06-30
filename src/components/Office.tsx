@@ -7,7 +7,7 @@ import { VW, VH, SPRITE_FILES, drawScene, hitTest, type ImageMap, type NpcSlot }
 
 const slots: NpcSlot[] = ROSTER.map((r) => {
   const p = NPCS[r.id];
-  return { id: r.id, x: r.x, y: r.y, room: r.room, name: p.title, emoji: p.emoji, sprite: p.sprite ?? "clerk" };
+  return { id: r.id, x: r.x, y: r.y, room: r.room, name: p.name.split("（")[0], emoji: p.emoji, sprite: p.sprite ?? "clerk" };
 });
 
 function loadImages(): Promise<ImageMap> {
