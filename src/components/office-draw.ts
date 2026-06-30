@@ -80,10 +80,11 @@ function drawReception(ctx: CanvasRenderingContext2D) {
   drawPlaque(ctx, 12, 44, 74, 42);
   ctx.font = "11px 'Fusion Pixel',monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillStyle = "#c0392b"; ctx.fillText("客户至上", 49, 57); ctx.fillText("服务全球", 49, 73);
-  ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fillRect(35, VH - 24, 60, 16);
-  ctx.fillStyle = "#2f6b3a"; ctx.fillRect(34, VH - 26, 60, 16);
-  ctx.strokeStyle = "#13351c"; ctx.lineWidth = 1; ctx.strokeRect(34.5, VH - 25.5, 59, 15);
-  ctx.fillStyle = "#eafbe8"; ctx.font = "9px 'Fusion Pixel',monospace"; ctx.fillText("WELCOME", 64, VH - 18);
+  const wx = 296, wy = 98; // 挪到主管阿强右上角的空墙
+  ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fillRect(wx + 1, wy + 2, 60, 16);
+  ctx.fillStyle = "#2f6b3a"; ctx.fillRect(wx, wy, 60, 16);
+  ctx.strokeStyle = "#13351c"; ctx.lineWidth = 1; ctx.strokeRect(wx + 0.5, wy + 0.5, 59, 15);
+  ctx.fillStyle = "#eafbe8"; ctx.font = "9px 'Fusion Pixel',monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("WELCOME", wx + 30, wy + 8);
 }
 
 // 老板专属办公室隔断
