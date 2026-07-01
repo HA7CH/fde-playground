@@ -67,6 +67,8 @@ function mockReply(id: Persona["id"], userText: string): string {
   if (id === "boss") {
     if (ask(["多少钱", "价格", "报价", "收费"])) return `${p}你先说能帮我省多少。一个跟单一年怎么也十来万，你得省下这个。[[CLUE:boss-wrongnum]]`;
     if (ask(["全自动", "保证", "自动"])) return `${p}对！我就要全自动的，你能保证吗？[[CLUE:boss-fakeneed]]`;
+    if (ask(["接单", "接更多", "多接", "接得过来", "产能", "瓶颈", "卡在", "扩"])) return `${p}实话说接单接不过来，好几个客户想加量我不敢接，一线忙不过来。卡点大概四成在内部看屏幕这些(对单做账)、六成在外部船期客户。[[CLUE:boss-capacity]] [[CLUE:boss-bottleneck]]`;
+    if (ask(["毛利", "利润率", "赚"])) return `${p}我们这行毛利大概三成。多接的单大半能落到利润。[[CLUE:boss-margin]]`;
     return `${p}我只看结果：少赔钱、少投诉。对单做账那块老出岔子。[[CLUE:boss-realpain]]`;
   }
   if (id === "boss_offrecord") {
