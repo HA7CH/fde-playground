@@ -156,6 +156,8 @@ img { image-rendering: pixelated; }
 .msg.assistant .bubble { background: var(--cream); border-top-left-radius: 2px; }
 .msg.user .bubble { background: #d7ead0; border-top-right-radius: 2px; }
 .bubble.typing { letter-spacing: 3px; opacity: .55; }
+/* 已问干净提示条：这个人身上的线索都问出来了，提醒玩家换人 */
+.dlg-done { font-size: 12px; line-height: 1.55; text-align: center; padding: 9px 12px; color: #2c5f38; background: #dff0d8; border-top: 3px solid var(--ink); }
 .dlg-foot { display: flex; gap: 8px; padding: 10px; border-top: 3px solid var(--ink); background: var(--cream); }
 .dlg-foot input { flex: 1; min-width: 0; font-family: var(--pixel); font-size: 13px; padding: 10px 11px; border: 2px solid var(--ink); border-radius: 7px; background: var(--paper); }
 .dlg-foot .btn { padding: 10px 16px; }

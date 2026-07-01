@@ -55,7 +55,7 @@ export default function Play() {
       {/* 主体：办公室 + 线索笔记本 */}
       <div className="invest-body">
         <div className="stage">
-          <Office onSelect={setActive} />
+          <Office onSelect={setActive} found={found} />
         </div>
 
         <aside className="note panel">
@@ -93,6 +93,7 @@ export default function Play() {
           persona={NPCS[active]}
           sessionId={sessionId}
           seed={histories[active] ?? []}
+          found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [active]: msgs }))}
           onClues={addClues}
           onClose={() => setActive(null)}
@@ -104,6 +105,7 @@ export default function Play() {
           persona={NPCS[pendingEvent]}
           sessionId={sessionId}
           seed={histories[pendingEvent] ?? []}
+          found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [pendingEvent]: msgs }))}
           onClues={() => { /* 酒局不进笔记本：信号在对话本身，已入库供回看 */ }}
           onClose={() => setPendingEvent(null)}

@@ -125,11 +125,18 @@ function postGrade(ctx: CanvasRenderingContext2D, t: number) {
   ctx.restore();
 }
 
-function nameTag(ctx: CanvasRenderingContext2D, cx: number, by: number, name: string, hi: boolean) {
+function nameTag(ctx: CanvasRenderingContext2D, cx: number, by: number, name: string, hi: boolean, done = false) {
   ctx.font = "8px 'Fusion Pixel',monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   const w = Math.max(ctx.measureText(name).width + 8, 22), x = Math.round(cx - w / 2), y = Math.round(by + 3);
-  ctx.fillStyle = hi ? "rgba(201,93,46,0.96)" : "rgba(30,22,38,0.82)"; ctx.fillRect(x, y, Math.round(w), 12);
+  ctx.fillStyle = hi ? "rgba(201,93,46,0.96)" : done ? "rgba(52,116,66,0.92)" : "rgba(30,22,38,0.82)"; ctx.fillRect(x, y, Math.round(w), 12);
   ctx.fillStyle = "#f6efe2"; ctx.fillText(name, cx, y + 6);
+}
+// 已问干净：头顶挂一个绿色 ✓ 徽章，替代 idle emoji 气泡
+function doneBadge(ctx: CanvasRenderingContext2D, cx: number, topY: number) {
+  const y = topY - 13;
+  ctx.fillStyle = "#4f9d57"; ctx.fillRect(cx - 8, y, 16, 12); ctx.fillRect(cx - 2, y + 12, 3, 3);
+  ctx.strokeStyle = "#2e6b38"; ctx.lineWidth = 1; ctx.strokeRect(cx - 7.5, y + 0.5, 15, 11);
+  ctx.fillStyle = "#ffffff"; ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("✓", cx, y + 5);
 }
 function bubble(ctx: CanvasRenderingContext2D, cx: number, topY: number, emoji: string, hi: boolean) {
   const y = topY - 13;
@@ -138,7 +145,7 @@ function bubble(ctx: CanvasRenderingContext2D, cx: number, topY: number, emoji: 
   ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(emoji, cx, y + 5);
 }
 
-export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; timeMs: number; }
+export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; doneIds?: Set<PersonaId>; timeMs: number; }
 
 export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   const im = s.images, t = s.timeMs;
@@ -166,9 +173,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   postGrade(ctx, t);
   for (const slot of pods) {
     const cx = slot.x, by = slot.y, hi = s.hoveredId === slot.id;
+    const done = s.doneIds?.has(slot.id) ?? false;
     if (hi) { ctx.strokeStyle = "rgba(255,214,140,0.9)"; ctx.lineWidth = 1; ctx.strokeRect(cx - 13, by - 6, 26, 24); }
-    bubble(ctx, cx, by - 3 + (frame === "1" ? -1 : 0), slot.emoji, hi);
-    nameTag(ctx, cx, by + 16, slot.name, hi);
+    const topY = by - 3 + (frame === "1" ? -1 : 0);
+    if (done) doneBadge(ctx, cx, topY);
+    else bubble(ctx, cx, topY, slot.emoji, hi);
+    nameTag(ctx, cx, by + 16, slot.name, hi, done);
   }
 }
 

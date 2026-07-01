@@ -12,6 +12,7 @@ export default function Dialogue({
   persona,
   sessionId,
   seed,
+  found,
   onPersist,
   onClues,
   onClose,
@@ -20,6 +21,8 @@ export default function Dialogue({
   persona: Persona;
   sessionId: string;
   seed: ChatMessage[];
+  /** 已集齐的线索 id 集合，用来判断这个人是否已被问干净 */
+  found: Set<string>;
   onPersist: (msgs: ChatMessage[]) => void;
   onClues: (ids: string[]) => void;
   onClose: () => void;
@@ -33,6 +36,9 @@ export default function Dialogue({
   const [busy, setBusy] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const portrait = `/assets/sprites2/char2_${persona.sprite ?? persona.id}.png`;
+  // 这个人身上的线索是否已全部问出（只有带线索的关键同事才会触发，干扰角色/酒局 clues 为空 → 恒 false）
+  const myClues = persona.clues ?? [];
+  const exhausted = myClues.length > 0 && myClues.every((c) => found.has(c.id));
 
   useEffect(() => {
     onPersist(messages);
@@ -93,6 +99,12 @@ export default function Dialogue({
             </div>
           ))}
         </div>
+
+        {exhausted && (
+          <div className="dlg-done">
+            ✅ 这位{persona.title}该问的都问到了（{myClues.length} 条线索已入袋）· 回办公室换个人聊聊
+          </div>
+        )}
 
         <div className="dlg-foot">
           <input

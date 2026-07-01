@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NPCS, ROSTER } from "@/lib/personas";
 import type { PersonaId } from "@/lib/types";
 import { VW, VH, SPRITE_FILES, drawScene, hitTest, type ImageMap, type NpcSlot } from "./office-draw";
@@ -24,11 +24,23 @@ function loadImages(): Promise<ImageMap> {
   ).then((pairs) => Object.fromEntries(pairs));
 }
 
-export default function Office({ onSelect }: { onSelect: (id: PersonaId) => void }) {
+export default function Office({ onSelect, found }: { onSelect: (id: PersonaId) => void; found: Set<string> }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverRef = useRef<PersonaId | null>(null);
+  const doneRef = useRef<Set<PersonaId>>(new Set());
   const [cursorPointer, setCursorPointer] = useState(false);
   const [ready, setReady] = useState(false);
+
+  // 哪些同事已被"问干净"（自己的线索全部进了笔记本）→ 头顶挂 ✓。干扰角色无线索，永不标记。
+  const doneIds = useMemo(() => {
+    const d = new Set<PersonaId>();
+    for (const slot of slots) {
+      const cs = NPCS[slot.id]?.clues ?? [];
+      if (cs.length > 0 && cs.every((c) => found.has(c.id))) d.add(slot.id);
+    }
+    return d;
+  }, [found]);
+  useEffect(() => { doneRef.current = doneIds; }, [doneIds]);
 
   useEffect(() => {
     let raf = 0;
@@ -48,7 +60,7 @@ export default function Office({ onSelect }: { onSelect: (id: PersonaId) => void
       ctx.imageSmoothingEnabled = false;
       setReady(true);
       const loop = (t: number) => {
-        drawScene(ctx, { images, slots, hoveredId: hoverRef.current, timeMs: t });
+        drawScene(ctx, { images, slots, hoveredId: hoverRef.current, doneIds: doneRef.current, timeMs: t });
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
