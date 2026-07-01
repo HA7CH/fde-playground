@@ -6,6 +6,44 @@ import type { ChatMessage, ChatRequest } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const CLUE_TAG_RE = /\[\[CLUE:([^\]]+)\]\]/g;
+
+function hasAny(text: string, words: string[]) {
+  return words.some((word) => text.includes(word));
+}
+
+function fallbackClueTags(npcId: string, userText: string, assistantText: string) {
+  const existing = new Set([...assistantText.matchAll(CLUE_TAG_RE)].map((m) => m[1]));
+  const combined = `${userText}\n${assistantText}`.toLowerCase();
+  const assistant = assistantText.toLowerCase();
+  const inferred: string[] = [];
+
+  const add = (id: string, ok: boolean) => {
+    if (ok && !existing.has(id)) inferred.push(id);
+  };
+
+  if (npcId === "boss") {
+    add("boss-wrongnum", hasAny(assistant, ["十来万", "八千", "一万"]) && hasAny(assistant, ["成本", "省"]));
+    add("boss-org", hasAny(assistantText, ["阿强"]) && hasAny(assistantText, ["婷婷"]) && hasAny(assistantText, ["小敏"]));
+  }
+
+  if (npcId === "manager") {
+    add("mgr-access", hasAny(assistant, ["公司账号", "账号发你"]) && hasAny(combined, ["船司", "one", "马士基", "长荣", "zim", "官网", "登录"]));
+    add("mgr-undervalue", hasAny(assistant, ["一小时", "1小时", "一个小时"]) && hasAny(combined, ["异常", "一线", "婷婷", "跟单", "高频"]));
+  }
+
+  if (npcId === "sales") {
+    add("sales-exist", hasAny(assistantText, ["别家平台", "小货代同行", "同行", "早有", "已经有"]) && hasAny(combined, ["链接", "托书", "填"]));
+  }
+
+  if (npcId === "clerk") {
+    add("clerk-deadline", hasAny(assistantText, ["截单"]) && hasAny(assistantText, ["收款"]) && hasAny(assistantText, ["放单"]));
+    add("clerk-fear", hasAny(assistantText, ["取代", "替代", "没用"]) && hasAny(combined, ["系统", "ai", "工具", "做出来"]));
+  }
+
+  return inferred.map((id) => `[[CLUE:${id}]]`).join("");
+}
+
 export async function POST(req: Request) {
   let payload: ChatRequest;
   try {
@@ -41,6 +79,11 @@ export async function POST(req: Request) {
         for await (const delta of streamChat(persona, history)) {
           full += delta;
           controller.enqueue(encoder.encode(delta));
+        }
+        const fallbackTags = fallbackClueTags(persona.id, lastUser?.content || "", full);
+        if (fallbackTags) {
+          full += fallbackTags;
+          controller.enqueue(encoder.encode(fallbackTags));
         }
       } catch (e) {
         console.error("[/api/chat] stream error", e);
