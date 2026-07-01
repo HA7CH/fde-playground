@@ -1,6 +1,7 @@
 import { getPersona } from "@/lib/personas";
 import { streamChat } from "@/lib/llm";
 import { captureMessage } from "@/lib/store";
+import { inferClueIds } from "@/lib/clueDetection";
 import type { ChatMessage, ChatRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -41,6 +42,12 @@ export async function POST(req: Request) {
         for await (const delta of streamChat(persona, history)) {
           full += delta;
           controller.enqueue(encoder.encode(delta));
+        }
+        const inferred = inferClueIds(persona, lastUser?.content ?? "", full);
+        if (inferred.length) {
+          const fallbackTags = inferred.map((id) => `[[CLUE:${id}]]`).join(" ");
+          full += fallbackTags;
+          controller.enqueue(encoder.encode(fallbackTags));
         }
       } catch (e) {
         console.error("[/api/chat] stream error", e);
