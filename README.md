@@ -14,6 +14,11 @@
 ## 架构边界（命门）
 渲染层（`components/Office.tsx` + `office-draw.ts`）**只画场景 + 上报点击**，绝不碰 LLM/采集。点击 NPC → React 打开 `Dialogue` → `POST /api/chat` 流式调 DeepSeek → 每轮对话服务端落库 Supabase。换皮（Pixi/2.5D）不影响对话与采集。
 
+## 线索识别稳定性
+NPC 回答里的线索笔记本原本依赖 LLM 在回复末尾自觉追加隐藏标记（例如 `[[CLUE:boss-capacity]]`）。真实流式模型会偶发"事实已经说出但忘记打标"的问题，导致玩家正常访谈却不涨线索数。
+
+现在 `/api/chat` 在保留原有隐藏标记协议的同时，会在服务端用 `lib/clueDetection.ts` 做一次确定性兜底：当某个角色的本轮"玩家问题 + NPC 回答"已经明确覆盖该角色自己的线索事实，但模型漏写 `[[CLUE:id]]` 时，服务端会在流末尾补上隐藏标记。前端仍按原逻辑清理标记并更新笔记本，玩家可见对话不变；干扰角色和老板酒局没有线索定义，不会误进笔记本。
+
 ```
 src/
   app/
@@ -27,6 +32,7 @@ src/
   lib/
     personas.ts         4 个货代人设（摹自真实驻场素材）
     llm.ts              DeepSeek 流式（无 key 时 mock 兜底）
+    clueDetection.ts    服务端线索兜底识别（防止 LLM 漏打隐藏标记）
     store.ts            Supabase 采集（无配置时降级日志）
     types.ts
 ```
