@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { sfx } from "@/lib/sfx";
+import { shake } from "@/lib/fx";
 
 const shareText = (n: number) =>
   `我在玩「FDE Playground」——一次真实货代驻场被压成 2 小时的像素解谜🕵️\n` +
@@ -12,8 +14,12 @@ const shareText = (n: number) =>
 export default function ShareModal({ foundCount, onClose }: { foundCount: number; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const text = shareText(foundCount);
+  const windowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { sfx("share"); shake(windowRef.current, 7, 380); }, []);
 
   const copy = async () => {
+    sfx("ui");
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -25,7 +31,7 @@ export default function ShareModal({ foundCount, onClose }: { foundCount: number
 
   return (
     <div className="dlg-backdrop share-backdrop" onClick={onClose}>
-      <div className="panel share-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="panel share-modal" ref={windowRef} onClick={(e) => e.stopPropagation()}>
         <div className="share-head">
           📕 摸到点门道了！
           <button className="dlg-close" onClick={onClose} aria-label="关闭">✕</button>

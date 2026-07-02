@@ -6,8 +6,10 @@ import Office from "@/components/Office";
 import Dialogue from "@/components/Dialogue";
 import DiagnoseModal from "@/components/DiagnoseModal";
 import ShareModal from "@/components/ShareModal";
-import { ALL_CLUES, NPCS } from "@/lib/personas";
+import SoundToggle from "@/components/SoundToggle";
+import { ALL_CLUES, KEY_CLUE_IDS, NPCS } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
+import { sfx } from "@/lib/sfx";
 
 const STORE_KEY = "fde-play-v1"; // localStorage 键（改结构就 bump 版本）
 
@@ -57,7 +59,11 @@ export default function Play() {
   const total = ALL_CLUES.length;
   const ready = talkedCount >= 2 || found.size >= 3;
 
-  const addClues = (ids: string[]) => setFound((s) => { const n = new Set(s); ids.forEach((i) => n.add(i)); return n; });
+  const addClues = (ids: string[]) => {
+    const fresh = ids.filter((i) => !found.has(i));
+    if (fresh.length) sfx(fresh.some((i) => KEY_CLUE_IDS.includes(i)) ? "clueKey" : "clue");
+    setFound((s) => { const n = new Set(s); ids.forEach((i) => n.add(i)); return n; });
+  };
 
   // 集满 3 条线索 → 邀请发小红书（传播钩子）。只触发一次（firedEvents 已持久化，刷新也不再弹）。
   useEffect(() => {
@@ -94,6 +100,7 @@ export default function Play() {
         <div className="prog">
           <span>🗣 已聊 <b>{talkedCount}</b> 人</span>
           <span>🔍 线索 <b>{found.size}</b>/{total}</span>
+          <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
         </div>
       </div>
@@ -101,7 +108,7 @@ export default function Play() {
       {/* 主体：办公室 + 线索笔记本 */}
       <div className="invest-body">
         <div className="stage">
-          <Office onSelect={setActive} found={found} />
+          <Office onSelect={(id) => { sfx("open"); setActive(id); }} found={found} />
         </div>
 
         <aside className="note panel">
@@ -127,7 +134,7 @@ export default function Play() {
         <span className="cta-hint">
           {ready ? "差不多摸清了？把你的诊断交给主管。" : "先多跟几个同事聊聊，集齐线索再下结论。"}
         </span>
-        <button className="btn btn-accent cta-btn" disabled={!ready} onClick={() => setDiagnose(true)}>
+        <button className="btn btn-accent cta-btn" disabled={!ready} onClick={() => { sfx("diagnose"); setDiagnose(true); }}>
           📝 提交你的诊断
         </button>
       </div>
