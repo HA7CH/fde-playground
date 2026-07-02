@@ -8,6 +8,10 @@ const CLUE_RE = /\s*\[\[CLUE:([^\]]+)\]\]/g;
 const clean = (s: string) => s.replace(CLUE_RE, "");
 const extractClues = (s: string) => [...s.matchAll(CLUE_RE)].map((m) => m[1].trim());
 
+/** 事件的展示契约：backdrop 换肤 + 顶部旁白 + 可选场景条。
+ *  scene 渲染在 dlg-bar 下方的定高槽位（框内、随文档流），勿做全屏定位。 */
+export type DialogueEvent = { backdropClass: string; caption: string; scene?: React.ReactNode };
+
 export default function Dialogue({
   persona,
   sessionId,
@@ -26,8 +30,8 @@ export default function Dialogue({
   onPersist: (msgs: ChatMessage[]) => void;
   onClues: (ids: string[]) => void;
   onClose: () => void;
-  /** 事件场景：换浮层背景 + 顶部旁白（不传则是普通工位对话） */
-  event?: { backdropClass: string; caption: string };
+  /** 事件场景（不传则是普通工位对话） */
+  event?: DialogueEvent;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(
     seed.length ? seed : [{ role: "assistant", content: persona.opening }],
@@ -87,6 +91,8 @@ export default function Dialogue({
           <FontToggle />
           <button className="dlg-close" onClick={onClose} aria-label="关闭">✕</button>
         </div>
+
+        {event?.scene /* 事件小场景：嵌在标题栏下、聊天记录上（框内，不铺全屏） */}
 
         <div className="dlg-log" ref={logRef}>
           {event && <div className="scene-cap">{event.caption}</div>}
