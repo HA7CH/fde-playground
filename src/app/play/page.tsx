@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Office from "@/components/Office";
 import Dialogue from "@/components/Dialogue";
 import DiagnoseModal from "@/components/DiagnoseModal";
+import OfficeBuzz, { type OfficeBuzzHandle } from "@/components/OfficeBuzz";
 import { ALL_CLUES, NPCS } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
 
@@ -37,6 +38,10 @@ export default function Play() {
     }
   }, [found, firedEvents]);
 
+  // 打工人假通知（逻辑全在 OfficeBuzz）。聊完某人时让它冒一句挂钩的吐槽。
+  const buzz = useRef<OfficeBuzzHandle>(null);
+  const talked = (id: PersonaId | null) => !!id && (histories[id] ?? []).some((m) => m.role === "user");
+
   return (
     <div className="invest">
       {/* 顶部：身份 + 目标 + 进度 */}
@@ -56,6 +61,7 @@ export default function Play() {
       <div className="invest-body">
         <div className="stage">
           <Office onSelect={setActive} found={found} />
+          <OfficeBuzz ref={buzz} idle={!active && !pendingEvent && !diagnose} />
         </div>
 
         <aside className="note panel">
@@ -96,7 +102,7 @@ export default function Play() {
           found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [active]: msgs }))}
           onClues={addClues}
-          onClose={() => setActive(null)}
+          onClose={() => { buzz.current?.afterChat(active, talked(active)); setActive(null); }}
         />
       )}
       {/* 事件：老板酒局。等玩家聊完当前同事（active 为空）再开场，不叠在普通对话上 */}
@@ -108,7 +114,7 @@ export default function Play() {
           found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [pendingEvent]: msgs }))}
           onClues={() => { /* 酒局不进笔记本：信号在对话本身，已入库供回看 */ }}
-          onClose={() => setPendingEvent(null)}
+          onClose={() => { buzz.current?.afterChat(pendingEvent, talked(pendingEvent)); setPendingEvent(null); }}
           event={{
             backdropClass: "event-drinks",
             caption: "🍻 下班后 · 老地方大排档。李总多喝了两杯，话比白天多……（这段也会被记录）",
