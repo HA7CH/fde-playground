@@ -145,6 +145,18 @@ img { image-rendering: pixelated; }
 .dlg-name span { font-size: 10px; opacity: .85; }
 .dlg-close { background: rgba(0,0,0,.18); border: 2px solid rgba(0,0,0,.3); color: #fff7e6; border-radius: 6px; width: 26px; height: 26px; font-size: 13px; }
 .dlg-log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; background: var(--paper); }
+/* 打工人弹幕：小巧的一行，落在「客户至上」牌子下面，尽量不挡画面 */
+.stage { position: relative; }
+.buzz { position: absolute; top: 36%; left: 3.5%; z-index: 30; max-width: min(232px, 56%); display: flex; gap: 7px; align-items: flex-start;
+  padding: 6px 10px 7px 7px; background: var(--cream); border: 2px solid var(--ink); border-radius: 12px;
+  box-shadow: 0 3px 0 #3a2a1a; animation: buzz-in .2s ease-out; }
+.buzz-av { width: 22px; height: 25px; flex-shrink: 0; margin-top: 1px; }
+.buzz-line { font-size: 12px; line-height: 1.5; color: var(--ink); word-break: break-word; }
+.buzz-line b { color: var(--accent-d); margin-right: 5px; }
+.buzz.buzz-out { animation: buzz-out .5s ease-in forwards; }
+@keyframes buzz-in { from { transform: translateY(-5px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes buzz-out { from { opacity: 1; } to { transform: translateY(-4px); opacity: 0; } }
+
 /* 事件场景：老板酒局——暗下来、暖光收束，区别于白天工位 */
 .dlg-backdrop.event-drinks { background: rgba(12,6,18,.78); }
 .dlg-backdrop.event-drinks .dlg-window { box-shadow: 0 0 0 3px #7a3b1d, 0 14px 48px rgba(220,120,40,.35); }
