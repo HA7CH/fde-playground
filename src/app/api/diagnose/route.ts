@@ -4,6 +4,7 @@ import { ALL_CLUES } from "@/lib/personas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const REVIEW_NPC_ID = "manager";
 
 export async function POST(req: Request) {
   let body: { sessionId?: string; diagnosis?: string; foundClues?: string[] };
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   const userMsg =
     `这是我做完调研后的诊断：\n「${diagnosis}」\n\n我在调研里挖到的线索：${foundText}\n\n请你以主管阿强的口吻点评我摸得准不准。`;
 
-  captureMessage({ sessionId, npcId: "boss", role: "user", content: `[诊断] ${diagnosis}` });
+  await captureMessage({ sessionId, npcId: REVIEW_NPC_ID, role: "user", content: `[诊断] ${diagnosis}` });
 
   const encoder = new TextEncoder();
   let full = "";
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode("（复盘时网络打了个嗝，再试一次）"));
       } finally {
         controller.close();
-        if (full.trim()) captureMessage({ sessionId, npcId: "boss", role: "assistant", content: `[复盘] ${full}` });
+        if (full.trim()) await captureMessage({ sessionId, npcId: REVIEW_NPC_ID, role: "assistant", content: `[复盘] ${full}` });
       }
     },
   });
