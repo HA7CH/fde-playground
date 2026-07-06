@@ -1,10 +1,26 @@
+"use client";
+
 import Link from "next/link";
+import Office from "@/components/Office";
+import SoundToggle from "@/components/SoundToggle";
+import GitHubLink from "@/components/GitHubLink";
 import { PERSONA_ORDER, PERSONAS } from "@/lib/personas";
+import { sfx } from "@/lib/sfx";
 
 export default function Home() {
   return (
     <main className="title-screen">
-      <div className="title-card panel">
+      {/* 活的像素办公室背景（非交互）+ 压暗 + CRT 扫描线 */}
+      <div className="title-bg" aria-hidden="true">
+        <Office interactive={false} />
+        <div className="title-scrim" />
+        <div className="title-scan" />
+      </div>
+
+      <SoundToggle className="title-sound" />
+      <GitHubLink />
+
+      <div className="title-card panel title-enter">
         <span className="title-kicker">HATCH · FDE Playground</span>
         <h1 className="title-logo">
           FDE Playground
@@ -35,7 +51,7 @@ export default function Home() {
           </ol>
         </div>
 
-        <Link href="/play" className="btn btn-accent title-start">
+        <Link href="/play" className="btn btn-accent title-start" onClick={() => sfx("open")}>
           ▶ 进办公室
         </Link>
         <p className="title-foot">每个人只知道自己那摊事，没人知道全部真相 · 问对人，问对问题</p>

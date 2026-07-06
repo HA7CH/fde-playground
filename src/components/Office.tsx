@@ -24,7 +24,15 @@ function loadImages(): Promise<ImageMap> {
   ).then((pairs) => Object.fromEntries(pairs));
 }
 
-export default function Office({ onSelect, found }: { onSelect: (id: PersonaId) => void; found: Set<string> }) {
+export default function Office({
+  onSelect,
+  found = new Set(),
+  interactive = true,
+}: {
+  onSelect?: (id: PersonaId) => void;
+  found?: Set<string>;
+  interactive?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverRef = useRef<PersonaId | null>(null);
   const doneRef = useRef<Set<PersonaId>>(new Set());
@@ -81,18 +89,18 @@ export default function Office({ onSelect, found }: { onSelect: (id: PersonaId) 
   const onClick = (e: React.PointerEvent) => {
     const { vx, vy } = toVirtual(e.clientX, e.clientY);
     const hit = hitTest(slots, vx, vy);
-    if (hit) onSelect(hit);
+    if (hit) onSelect?.(hit);
   };
 
   return (
     <div className="office-wrap">
       <canvas
         ref={canvasRef}
-        className="office-canvas"
-        style={{ cursor: cursorPointer ? "pointer" : "default", opacity: ready ? 1 : 0 }}
-        onPointerMove={onMove}
-        onPointerDown={onClick}
-        onPointerLeave={() => { hoverRef.current = null; setCursorPointer(false); }}
+        className={`office-canvas${interactive ? "" : " ambient"}`}
+        style={{ cursor: interactive && cursorPointer ? "pointer" : "default", opacity: ready ? 1 : 0 }}
+        onPointerMove={interactive ? onMove : undefined}
+        onPointerDown={interactive ? onClick : undefined}
+        onPointerLeave={interactive ? () => { hoverRef.current = null; setCursorPointer(false); } : undefined}
       />
     </div>
   );

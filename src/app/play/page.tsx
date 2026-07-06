@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Office from "@/components/Office";
 import Dialogue from "@/components/Dialogue";
 import DiagnoseModal from "@/components/DiagnoseModal";
+import ShareModal from "@/components/ShareModal";
+import SoundToggle from "@/components/SoundToggle";
+import GitHubLink from "@/components/GitHubLink";
 import OfficeBuzz, { type OfficeBuzzHandle } from "@/components/OfficeBuzz";
-import { ALL_CLUES, NPCS } from "@/lib/personas";
+import { ALL_CLUES, KEY_CLUE_IDS, NPCS } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
+import { sfx } from "@/lib/sfx";
+
+const STORE_KEY = "fde-play-v1"; // localStorage 键（改结构就 bump 版本）
 
 function newSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -15,20 +21,59 @@ function newSessionId() {
 }
 
 export default function Play() {
-  const sessionId = useMemo(newSessionId, []);
+  const [sessionId, setSessionId] = useState("");
   const [active, setActive] = useState<PersonaId | null>(null);
   const [histories, setHistories] = useState<Record<string, ChatMessage[]>>({});
   const [found, setFound] = useState<Set<string>>(new Set());
   const [diagnose, setDiagnose] = useState(false);
-  // 事件：满 N 条线索触发"老板酒局"。pending = 已触发待开场；fired 保证一次性。
+  // 事件：满 N 条线索触发一次性弹窗。pending = 已触发待开场；fired 保证一次性。
   const [firedEvents, setFiredEvents] = useState<Set<string>>(new Set());
   const [pendingEvent, setPendingEvent] = useState<PersonaId | null>(null);
+  const [pendingShare, setPendingShare] = useState(false);
+  const [hydrated, setHydrated] = useState(false); // 从 localStorage 恢复完成前，别回写覆盖
+
+  // 恢复上次进度（仅客户端）。sessionId 也持久化——同一玩家多次会话串成一条采集记录。
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      const s = raw ? JSON.parse(raw) : null;
+      setSessionId(s?.sessionId || newSessionId());
+      if (s?.histories) setHistories(s.histories);
+      if (Array.isArray(s?.found)) setFound(new Set(s.found));
+      if (Array.isArray(s?.firedEvents)) setFiredEvents(new Set(s.firedEvents));
+    } catch {
+      setSessionId(newSessionId());
+    }
+    setHydrated(true);
+  }, []);
+
+  // 持久化进度（Set 存成数组）
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        sessionId, histories, found: [...found], firedEvents: [...firedEvents],
+      }));
+    } catch { /* 隐私模式/超额，忽略 */ }
+  }, [hydrated, sessionId, histories, found, firedEvents]);
 
   const talkedCount = Object.keys(histories).filter((id) => (histories[id] ?? []).some((m) => m.role === "user")).length;
   const total = ALL_CLUES.length;
   const ready = talkedCount >= 2 || found.size >= 3;
 
-  const addClues = (ids: string[]) => setFound((s) => { const n = new Set(s); ids.forEach((i) => n.add(i)); return n; });
+  const addClues = (ids: string[]) => {
+    const fresh = ids.filter((i) => !found.has(i));
+    if (fresh.length) sfx(fresh.some((i) => KEY_CLUE_IDS.includes(i)) ? "clueKey" : "clue");
+    setFound((s) => { const n = new Set(s); ids.forEach((i) => n.add(i)); return n; });
+  };
+
+  // 集满 3 条线索 → 邀请发小红书（传播钩子）。只触发一次（firedEvents 已持久化，刷新也不再弹）。
+  useEffect(() => {
+    if (found.size >= 3 && !firedEvents.has("share")) {
+      setFiredEvents((s) => new Set(s).add("share"));
+      setPendingShare(true);
+    }
+  }, [found, firedEvents]);
 
   // 集满 5 条线索 → 老板拉你喝酒（off-record）。只触发一次。（5=测试值，正式给候选人前可调回 8）
   useEffect(() => {
@@ -42,6 +87,13 @@ export default function Play() {
   const buzz = useRef<OfficeBuzzHandle>(null);
   const talked = (id: PersonaId | null) => !!id && (histories[id] ?? []).some((m) => m.role === "user");
 
+  const restart = () => {
+    try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
+    setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
+    setPendingEvent(null); setPendingShare(false); setDiagnose(false);
+    setSessionId(newSessionId());
+  };
+
   return (
     <div className="invest">
       {/* 顶部：身份 + 目标 + 进度 */}
@@ -54,13 +106,15 @@ export default function Play() {
         <div className="prog">
           <span>🗣 已聊 <b>{talkedCount}</b> 人</span>
           <span>🔍 线索 <b>{found.size}</b>/{total}</span>
+          <SoundToggle className="restart-btn" />
+          <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
         </div>
       </div>
 
       {/* 主体：办公室 + 线索笔记本 */}
       <div className="invest-body">
         <div className="stage">
-          <Office onSelect={setActive} found={found} />
+          <Office onSelect={(id) => { sfx("open"); setActive(id); }} found={found} />
           <OfficeBuzz ref={buzz} idle={!active && !pendingEvent && !diagnose} />
         </div>
 
@@ -87,12 +141,13 @@ export default function Play() {
         <span className="cta-hint">
           {ready ? "差不多摸清了？把你的诊断交给主管。" : "先多跟几个同事聊聊，集齐线索再下结论。"}
         </span>
-        <button className="btn btn-accent cta-btn" disabled={!ready} onClick={() => setDiagnose(true)}>
+        <button className="btn btn-accent cta-btn" disabled={!ready} onClick={() => { sfx("diagnose"); setDiagnose(true); }}>
           📝 提交你的诊断
         </button>
       </div>
 
       <Link href="/" className="exit-link">← 退出</Link>
+      <GitHubLink />
 
       {active && (
         <Dialogue
@@ -104,6 +159,10 @@ export default function Play() {
           onClues={addClues}
           onClose={() => { buzz.current?.afterChat(active, talked(active)); setActive(null); }}
         />
+      )}
+      {/* 集满 3 条 → 小红书邀请弹窗。等玩家聊完当前同事、且没有其它事件在弹时再出。 */}
+      {pendingShare && !active && !pendingEvent && (
+        <ShareModal foundCount={found.size} onClose={() => setPendingShare(false)} />
       )}
       {/* 事件：老板酒局。等玩家聊完当前同事（active 为空）再开场，不叠在普通对话上 */}
       {pendingEvent && !active && (
