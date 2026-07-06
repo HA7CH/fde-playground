@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Office from "@/components/Office";
 import Dialogue from "@/components/Dialogue";
 import DiagnoseModal from "@/components/DiagnoseModal";
 import ShareModal from "@/components/ShareModal";
 import SoundToggle from "@/components/SoundToggle";
 import GitHubLink from "@/components/GitHubLink";
+import OfficeBuzz, { type OfficeBuzzHandle } from "@/components/OfficeBuzz";
 import { ALL_CLUES, KEY_CLUE_IDS, NPCS } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
 import { sfx } from "@/lib/sfx";
@@ -82,6 +83,10 @@ export default function Play() {
     }
   }, [found, firedEvents]);
 
+  // 打工人假通知（逻辑全在 OfficeBuzz）。聊完某人时让它冒一句挂钩的吐槽。
+  const buzz = useRef<OfficeBuzzHandle>(null);
+  const talked = (id: PersonaId | null) => !!id && (histories[id] ?? []).some((m) => m.role === "user");
+
   const restart = () => {
     try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
     setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
@@ -110,6 +115,7 @@ export default function Play() {
       <div className="invest-body">
         <div className="stage">
           <Office onSelect={(id) => { sfx("open"); setActive(id); }} found={found} />
+          <OfficeBuzz ref={buzz} idle={!active && !pendingEvent && !diagnose} />
         </div>
 
         <aside className="note panel">
@@ -151,7 +157,7 @@ export default function Play() {
           found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [active]: msgs }))}
           onClues={addClues}
-          onClose={() => setActive(null)}
+          onClose={() => { buzz.current?.afterChat(active, talked(active)); setActive(null); }}
         />
       )}
       {/* 集满 3 条 → 小红书邀请弹窗。等玩家聊完当前同事、且没有其它事件在弹时再出。 */}
@@ -167,7 +173,7 @@ export default function Play() {
           found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [pendingEvent]: msgs }))}
           onClues={() => { /* 酒局不进笔记本：信号在对话本身，已入库供回看 */ }}
-          onClose={() => setPendingEvent(null)}
+          onClose={() => { buzz.current?.afterChat(pendingEvent, talked(pendingEvent)); setPendingEvent(null); }}
           event={{
             backdropClass: "event-drinks",
             caption: "🍻 下班后 · 老地方大排档。李总多喝了两杯，话比白天多……（这段也会被记录）",
