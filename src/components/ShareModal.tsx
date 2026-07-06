@@ -4,16 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { sfx } from "@/lib/sfx";
 import { shake } from "@/lib/fx";
 
-const shareText = (n: number) =>
+const shareText = (n: number, t: string) =>
   `我在玩「FDE Playground」——一次真实货代驻场被压成 2 小时的像素解谜🕵️\n` +
-  `在办公室里点同事、摸真需求，已经挖到 ${n} 条关键线索！你也来当一次 FDE 👇\n` +
+  `我用时 ${t} 摸出 ${n} 条关键线索！你也来当一次 FDE，看看比我快不快 👇\n` +
   `playground.ha7ch.com\n` +
   `#FDE #独立游戏 #货代 #AI应用 #像素游戏`;
 
 /** 集满 3 条线索时弹出：邀请玩家把这局体验发小红书（传播钩子）。一次性，由 play 页控制。 */
-export default function ShareModal({ foundCount, onClose }: { foundCount: number; onClose: () => void }) {
+export default function ShareModal({ foundCount, timeLabel, onClose }: { foundCount: number; timeLabel: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const text = shareText(foundCount);
+  const text = shareText(foundCount, timeLabel);
   const windowRef = useRef<HTMLDivElement>(null);
   const close = () => { sfx("close"); onClose(); };
 
@@ -39,8 +39,8 @@ export default function ShareModal({ foundCount, onClose }: { foundCount: number
         </div>
         <div className="share-body">
           <p className="share-lead">
-            你已经挖到 <b>{foundCount}</b> 条线索，有点 FDE 的样子了。
-            把这局发个小红书，拉朋友也来摸一摸这家货代 👀
+            你在 <b>{timeLabel}</b> 里挖到 <b>{foundCount}</b> 条线索，有点 FDE 的样子了。
+            把这局战绩发个小红书，拉朋友来比比谁更快 👀
           </p>
           <div className="share-text">{text}</div>
           <button className="btn btn-accent share-copy" onClick={copy}>

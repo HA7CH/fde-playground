@@ -19,6 +19,12 @@ function newSessionId() {
   return `s_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 }
 
+/** 毫秒 → m:ss */
+function fmt(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 export default function Play() {
   const [sessionId, setSessionId] = useState("");
   const [active, setActive] = useState<PersonaId | null>(null);
@@ -30,6 +36,8 @@ export default function Play() {
   const [pendingEvent, setPendingEvent] = useState<PersonaId | null>(null);
   const [pendingShare, setPendingShare] = useState(false);
   const [hydrated, setHydrated] = useState(false); // 从 localStorage 恢复完成前，别回写覆盖
+  const [startedAt, setStartedAt] = useState<number | null>(null); // 首次点开同事时开始计时（持久化，刷新不重置）
+  const [nowTs, setNowTs] = useState(0); // 当前时间戳，每秒 tick 刷新计时显示
 
   // 恢复上次进度（仅客户端）。sessionId 也持久化——同一玩家多次会话串成一条采集记录。
   useEffect(() => {
@@ -40,9 +48,11 @@ export default function Play() {
       if (s?.histories) setHistories(s.histories);
       if (Array.isArray(s?.found)) setFound(new Set(s.found));
       if (Array.isArray(s?.firedEvents)) setFiredEvents(new Set(s.firedEvents));
+      if (typeof s?.startedAt === "number") setStartedAt(s.startedAt);
     } catch {
       setSessionId(newSessionId());
     }
+    setNowTs(Date.now());
     setHydrated(true);
   }, []);
 
@@ -51,10 +61,19 @@ export default function Play() {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        sessionId, histories, found: [...found], firedEvents: [...firedEvents],
+        sessionId, histories, found: [...found], firedEvents: [...firedEvents], startedAt,
       }));
     } catch { /* 隐私模式/超额，忽略 */ }
-  }, [hydrated, sessionId, histories, found, firedEvents]);
+  }, [hydrated, sessionId, histories, found, firedEvents, startedAt]);
+
+  // 计时：首次点开同事后每秒刷新显示
+  useEffect(() => {
+    if (startedAt == null) return;
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  const elapsedMs = startedAt != null ? Math.max(0, nowTs - startedAt) : 0;
 
   const talkedCount = Object.keys(histories).filter((id) => (histories[id] ?? []).some((m) => m.role === "user")).length;
   const total = ALL_CLUES.length;
@@ -86,6 +105,7 @@ export default function Play() {
     try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
     setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
     setPendingEvent(null); setPendingShare(false); setDiagnose(false);
+    setStartedAt(null); setNowTs(Date.now());
     setSessionId(newSessionId());
   };
 
@@ -101,6 +121,7 @@ export default function Play() {
         <div className="prog">
           <span>🗣 已聊 <b>{talkedCount}</b> 人</span>
           <span>🔍 线索 <b>{found.size}</b>/{total}</span>
+          <span>⏱ <b>{fmt(elapsedMs)}</b></span>
           <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
         </div>
@@ -109,7 +130,7 @@ export default function Play() {
       {/* 主体：办公室 + 线索笔记本 */}
       <div className="invest-body">
         <div className="stage">
-          <Office onSelect={(id) => { sfx("open"); setActive(id); }} found={found} />
+          <Office onSelect={(id) => { sfx("open"); const t = Date.now(); setStartedAt((v) => v ?? t); setNowTs(t); setActive(id); }} found={found} />
         </div>
 
         <aside className="note panel">
@@ -156,7 +177,7 @@ export default function Play() {
       )}
       {/* 集满 3 条 → 小红书邀请弹窗。等玩家聊完当前同事、且没有其它事件在弹时再出。 */}
       {pendingShare && !active && !pendingEvent && (
-        <ShareModal foundCount={found.size} onClose={() => setPendingShare(false)} />
+        <ShareModal foundCount={found.size} timeLabel={fmt(elapsedMs)} onClose={() => setPendingShare(false)} />
       )}
       {/* 事件：老板酒局。等玩家聊完当前同事（active 为空）再开场，不叠在普通对话上 */}
       {pendingEvent && !active && (
