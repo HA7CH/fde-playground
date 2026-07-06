@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, Persona } from "@/lib/types";
+import { PERSONAS, PERSONA_ORDER } from "@/lib/personas";
 import FontToggle from "./FontToggle";
 import { sfx } from "@/lib/sfx";
 import { shake } from "@/lib/fx";
@@ -42,6 +43,19 @@ export default function Dialogue({
   // 这个人身上的线索是否已全部问出（只有带线索的关键同事才会触发，干扰角色/酒局 clues 为空 → 恒 false）
   const myClues = persona.clues ?? [];
   const exhausted = myClues.length > 0 && myClues.every((c) => found.has(c.id));
+  const nextHint = useMemo(() => {
+    const remaining = PERSONA_ORDER
+      .filter((id) => {
+        const clues = PERSONAS[id]?.clues ?? [];
+        return clues.length > 0 && clues.some((c) => !found.has(c.id));
+      })
+      .map((id) => PERSONAS[id].name.split("（")[0])
+      .slice(0, 3);
+
+    return remaining.length
+      ? `再去跟${remaining.join("、")}聊聊`
+      : "现在线索都收集全了！";
+  }, [found]);
   const close = () => { sfx("close"); onClose(); };
 
   useEffect(() => {
@@ -84,56 +98,3 @@ export default function Dialogue({
       }
       if (clean(acc).trim()) sfx("receive");
       const ids = extractClues(acc);
-      if (ids.length) onClues(ids);
-      // 拿到「新的」★ 核心痛点线索时才抖（排除已入袋的——服务端兜底会对重复内容再补标记，不能重复抖；与 play 页的声音去重逻辑一致）
-      if (ids.some((id) => !found.has(id) && myClues.some((c) => c.id === id && c.key))) shake(windowRef.current, 6, 320);
-      if (!clean(acc).trim()) setMessages([...outgoing, { role: "assistant", content: "（……没说话，再问一句试试）" }]);
-    } catch {
-      setMessages([...outgoing, { role: "assistant", content: "（网络打了个嗝，再说一句试试）" }]);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className={`dlg-backdrop ${event?.backdropClass ?? ""}`} onClick={close}>
-      <div className="dlg-window panel" ref={windowRef} onClick={(e) => e.stopPropagation()}>
-        <div className="dlg-bar" style={{ background: persona.color }}>
-          <div className="dlg-portrait"><img src={portrait} alt={persona.title} /></div>
-          <div className="dlg-name"><b>{persona.name}</b><span>{persona.emoji} {persona.title} · WAYBOUND 货代</span></div>
-          <FontToggle />
-          <button className="dlg-close" onClick={close} aria-label="关闭">✕</button>
-        </div>
-
-        <div className="dlg-log" ref={logRef}>
-          {event && <div className="scene-cap">{event.caption}</div>}
-          {messages.map((m, i) => (
-            <div key={i} className={`msg ${m.role}`}>
-              {m.role === "assistant" && <img className="msg-av" src={portrait} alt="" />}
-              <div className={`bubble ${busy && m.role === "assistant" && i === messages.length - 1 && !m.content ? "typing" : ""}`}>
-                {m.content || (busy && i === messages.length - 1 ? "…" : "")}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {exhausted && (
-          <div className="dlg-done">
-            ✅ 这位{persona.title}该问的都问到了（{myClues.length} 条线索已入袋）· 回办公室换个人聊聊
-          </div>
-        )}
-
-        <div className="dlg-foot">
-          <input
-            value={input}
-            placeholder={`问问${persona.title}…`}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) send(); }}
-            disabled={busy}
-          />
-          <button className="btn btn-accent" onClick={send} disabled={busy || !input.trim()}>发送</button>
-        </div>
-      </div>
-    </div>
-  );
-}
