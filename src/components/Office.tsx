@@ -29,17 +29,22 @@ export default function Office({
   found = new Set(),
   interactive = true,
   backlog = 0,
+  gameMs = 0,
 }: {
   onSelect?: (id: PersonaId) => void;
   found?: Set<string>;
   interactive?: boolean;
   backlog?: number;
+  /** 游戏内时间(游戏 ms)，驱动光照/挂钟/作息；rAF 帧间自行外推 */
+  gameMs?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverRef = useRef<PersonaId | null>(null);
   const doneRef = useRef<Set<PersonaId>>(new Set());
   const backlogRef = useRef(0);
   useEffect(() => { backlogRef.current = backlog; }, [backlog]);
+  const gameRef = useRef({ ms: 0, at: 0, live: false });
+  useEffect(() => { gameRef.current = { ms: gameMs, at: performance.now(), live: gameMs > 0 }; }, [gameMs]);
   const [cursorPointer, setCursorPointer] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -72,7 +77,9 @@ export default function Office({
       ctx.imageSmoothingEnabled = false;
       setReady(true);
       const loop = (t: number) => {
-        drawScene(ctx, { images, slots, hoveredId: hoverRef.current, doneIds: doneRef.current, backlog: backlogRef.current, timeMs: t });
+        const g = gameRef.current;
+        const gm = g.live ? g.ms + (t - g.at) * 60 : g.ms; // 1 现实 ms = 60 游戏 ms，帧间外推平滑
+        drawScene(ctx, { images, slots, hoveredId: hoverRef.current, doneIds: doneRef.current, backlog: backlogRef.current, gameMs: gm, timeMs: t });
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
