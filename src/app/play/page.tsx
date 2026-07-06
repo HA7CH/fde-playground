@@ -31,6 +31,9 @@ const GH = 3_600_000;                  // 1 游戏小时（游戏 ms）
 const DAY_START = 9, DAY_END = 21, DAY_LEN = DAY_END - DAY_START;
 // 订单节奏（可调）：开局旧账 14；9:00 早高峰 +12、13:00 午后 +8；团队全天消化 2 单/游戏小时（午休 12-13 停）；每条★核心线索 −6
 const BASE_BACKLOG = 14, BURST_AM = 12, BURST_PM = 8, DIGEST_PER_H = 2, CLUE_RELIEF = 6;
+// 积压堆到这个数还没什么进展 → 老板主动出来堵你（第1天午后无★≈26 会触发；挖到1条★=20 不会）
+const BOSS_PUSH_AT = 24;
+const BOSS_PUSH_MSG = "（李总从里间冲出来，把一沓单子拍在你桌上）小伙子，你自己看看——处理中都堆成山了！我请你来是把事捋顺的，不是陪大家聊天的。给我句准话：问题到底出在哪？多久能见效？";
 
 function gameClock(gameMs: number) {
   const totalH = gameMs / GH;
@@ -60,6 +63,7 @@ export default function Play() {
   const [firedEvents, setFiredEvents] = useState<Set<string>>(new Set());
   const [pendingEvent, setPendingEvent] = useState<PersonaId | null>(null);
   const [pendingShare, setPendingShare] = useState(false);
+  const [manualShare, setManualShare] = useState(false); // 顶栏「分享」按钮随时打开
   const [hydrated, setHydrated] = useState(false); // 从 localStorage 恢复完成前，别回写覆盖
   const [startedAt, setStartedAt] = useState<number | null>(null); // 首次点开同事时开始计时（持久化，刷新不重置）
   const [nowTs, setNowTs] = useState(0); // 当前时间戳，每秒 tick 刷新计时显示
@@ -169,10 +173,21 @@ export default function Play() {
     }
   }, [found, firedEvents]);
 
+  // NPC 主动来找你（通用管道：往 TA 的聊天记录里注入一条"走过来"的开场白 + 自动弹开对话）。
+  // 用例1：积压堆到 BOSS_PUSH_AT 还没进展 → 老板出来堵你催准话（白天版"酒桌逼单"，看你敢不敢顶住不过度承诺）。
+  useEffect(() => {
+    if (startedAt == null || backlog < BOSS_PUSH_AT || firedEvents.has("bosspush")) return;
+    if (active || pendingEvent || pendingShare || diagnose) return; // 不打断进行中的对话/弹窗
+    setFiredEvents((s) => new Set(s).add("bosspush"));
+    setHistories((h) => ({ ...h, boss: [...(h.boss ?? []), { role: "assistant" as const, content: BOSS_PUSH_MSG }] }));
+    setActive("boss");
+    sfx("event");
+  }, [backlog, startedAt, firedEvents, active, pendingEvent, pendingShare, diagnose]);
+
   const restart = () => {
     try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
     setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
-    setPendingEvent(null); setPendingShare(false); setDiagnose(false);
+    setPendingEvent(null); setPendingShare(false); setManualShare(false); setDiagnose(false);
     setStartedAt(null); setNowTs(Date.now()); setSkipMs(0); setDayToast(null);
     setSessionId(newSessionId());
   };
@@ -195,6 +210,7 @@ export default function Play() {
           </span>
           <span className={backlog >= 20 ? "prog-warn" : ""} title="早晚高峰会进单、团队全天消化（午休停）。挖到★核心痛点立减，或 ⏩ 快进等团队慢慢清">📦 积压 <b>{backlog}</b> 单</span>
           <button className="restart-btn" onClick={skipHour} disabled={startedAt == null} title="快进 1 小时：让团队干会儿活消化订单（会算进你的用时）">⏩ +1h</button>
+          <button className="restart-btn" onClick={() => { sfx("ui"); setManualShare(true); }} title="把当前战绩分享到小红书">📤 分享</button>
           <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
         </div>
@@ -253,9 +269,9 @@ export default function Play() {
           onClose={() => setActive(null)}
         />
       )}
-      {/* 集满 3 条 → 小红书邀请弹窗。等玩家聊完当前同事、且没有其它事件在弹时再出。 */}
-      {pendingShare && !active && !pendingEvent && (
-        <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={day} backlog={backlog} onClose={() => setPendingShare(false)} />
+      {/* 分享弹窗：集满 3 条自动弹一次 + 顶栏「📤 分享」随时手动打开（数字都取当下战绩） */}
+      {(pendingShare || manualShare) && !active && !pendingEvent && (
+        <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={day} backlog={backlog} onClose={() => { setPendingShare(false); setManualShare(false); }} />
       )}
       {/* 事件：老板酒局。等玩家聊完当前同事（active 为空）再开场，不叠在普通对话上 */}
       {pendingEvent && !active && (
