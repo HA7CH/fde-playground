@@ -28,14 +28,18 @@ export default function Office({
   onSelect,
   found = new Set(),
   interactive = true,
+  backlog = 0,
 }: {
   onSelect?: (id: PersonaId) => void;
   found?: Set<string>;
   interactive?: boolean;
+  backlog?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverRef = useRef<PersonaId | null>(null);
   const doneRef = useRef<Set<PersonaId>>(new Set());
+  const backlogRef = useRef(0);
+  useEffect(() => { backlogRef.current = backlog; }, [backlog]);
   const [cursorPointer, setCursorPointer] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -68,7 +72,7 @@ export default function Office({
       ctx.imageSmoothingEnabled = false;
       setReady(true);
       const loop = (t: number) => {
-        drawScene(ctx, { images, slots, hoveredId: hoverRef.current, doneIds: doneRef.current, timeMs: t });
+        drawScene(ctx, { images, slots, hoveredId: hoverRef.current, doneIds: doneRef.current, backlog: backlogRef.current, timeMs: t });
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);

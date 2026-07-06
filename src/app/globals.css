@@ -200,6 +200,9 @@ img { image-rendering: pixelated; }
 .prog b { color: var(--good); }
 .restart-btn { font-family: var(--pixel); font-size: 12px; color: var(--ink2); background: var(--paper); border: 2px solid var(--ink); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
 .restart-btn:hover { color: var(--accent-d); background: #fff; }
+/* 订单积压过多：红色警示 */
+.prog span.prog-warn { color: #c0392b; border-color: #c0392b; background: #fdecea; }
+.prog span.prog-warn b { color: #c0392b; }
 .invest-body { flex: 1; display: grid; grid-template-columns: minmax(0,1fr) 304px; gap: 12px; align-items: stretch; min-height: 0; }
 .note { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .note-list { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; min-height: 0; }
@@ -225,6 +228,32 @@ img { image-rendering: pixelated; }
 .title-screen .gh-link { color: rgba(246,239,226,.9); text-shadow: 0 1px 2px rgba(0,0,0,.55); }
 .title-screen .gh-link:hover { color: #fff; }
 @media (max-width: 860px) { .invest-body { grid-template-columns: 1fr; } }
+/* ===== 移动端适配 ===== */
+@media (max-width: 620px) {
+  .invest { justify-content: flex-start; padding: 8px; gap: 8px; }
+  .invest-top { flex-direction: column; align-items: stretch; gap: 8px; padding: 9px 12px; }
+  .obj { text-align: center; min-width: 0; font-size: 13px; }
+  .prog { flex-wrap: wrap; justify-content: center; gap: 6px; }
+  .prog span { font-size: 11px; padding: 4px 8px; }
+  .restart-btn { font-size: 11px; padding: 4px 8px; }
+  .stage { padding: 5px; }
+  .note { max-height: 46dvh; }
+  .invest-cta { gap: 8px; }
+  .cta-btn { font-size: 15px; padding: 11px 22px; }
+  .cta-hint { display: none; }
+  .exit-link, .gh-link { bottom: 6px; font-size: 10px; }
+}
+@media (max-width: 560px) {
+  .title-card { padding: 18px 14px; }
+  .title-logo { font-size: 26px; }
+  .title-logo small { font-size: 13px; }
+  .title-cast { gap: 7px; }
+  .title-cast .c { width: 46px; }
+  .title-cast .c .pic { width: 44px; height: 44px; }
+  .title-cast .c img { width: 34px; height: 38px; }
+  .title-steps { font-size: 11px; }
+  .title-start { font-size: 15px; padding: 12px 24px; }
+}
 
 /* 字体切换：清晰档（系统圆体），仍保留像素面板外框，不违和 */
 .font-toggle { background: rgba(0,0,0,0.18); border: 2px solid rgba(0,0,0,0.3); color: #fff7e6; border-radius: 6px; padding: 4px 8px; font-size: 11px; font-family: var(--pixel); flex-shrink: 0; cursor: pointer; }

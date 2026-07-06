@@ -76,6 +76,9 @@ export default function Play() {
   const elapsedMs = startedAt != null ? Math.max(0, nowTs - startedAt) : 0;
 
   const talkedCount = Object.keys(histories).filter((id) => (histories[id] ?? []).some((m) => m.role === "user")).length;
+  const totalUserMsgs = Object.values(histories).reduce((n, ms) => n + ms.filter((m) => m.role === "user").length, 0);
+  // 订单积压：开工后随时间累积（每 12s +1）+ 每跟人聊一句再 +1 —— 聊太久/太多，订单越堆越多
+  const backlog = startedAt != null ? Math.floor(elapsedMs / 12000) + totalUserMsgs : 0;
   const total = ALL_CLUES.length;
   const ready = talkedCount >= 2 || found.size >= 3;
 
@@ -122,6 +125,7 @@ export default function Play() {
           <span>🗣 已聊 <b>{talkedCount}</b> 人</span>
           <span>🔍 线索 <b>{found.size}</b>/{total}</span>
           <span>⏱ <b>{fmt(elapsedMs)}</b></span>
+          <span className={backlog >= 20 ? "prog-warn" : ""} title="你摸需求这功夫，新订单一直在进——聊太久会越堆越多">📦 积压 <b>{backlog}</b> 单</span>
           <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
         </div>
@@ -130,7 +134,7 @@ export default function Play() {
       {/* 主体：办公室 + 线索笔记本 */}
       <div className="invest-body">
         <div className="stage">
-          <Office onSelect={(id) => { sfx("open"); const t = Date.now(); setStartedAt((v) => v ?? t); setNowTs(t); setActive(id); }} found={found} />
+          <Office onSelect={(id) => { sfx("open"); const t = Date.now(); setStartedAt((v) => v ?? t); setNowTs(t); setActive(id); }} found={found} backlog={backlog} />
         </div>
 
         <aside className="note panel">
@@ -177,7 +181,7 @@ export default function Play() {
       )}
       {/* 集满 3 条 → 小红书邀请弹窗。等玩家聊完当前同事、且没有其它事件在弹时再出。 */}
       {pendingShare && !active && !pendingEvent && (
-        <ShareModal foundCount={found.size} timeLabel={fmt(elapsedMs)} onClose={() => setPendingShare(false)} />
+        <ShareModal foundCount={found.size} timeLabel={fmt(elapsedMs)} backlog={backlog} onClose={() => setPendingShare(false)} />
       )}
       {/* 事件：老板酒局。等玩家聊完当前同事（active 为空）再开场，不叠在普通对话上 */}
       {pendingEvent && !active && (

@@ -59,20 +59,45 @@ function drawFloorWalls(ctx: CanvasRenderingContext2D, im: ImageMap) {
   blitCB(ctx, im.whiteboard, 300, 31);
 }
 
-function drawOrderBoard(ctx: CanvasRenderingContext2D, x: number, y: number) {
+function drawOrderBoard(ctx: CanvasRenderingContext2D, x: number, y: number, processing: number, completed: number) {
   const w = 96, h = 64;
   ctx.fillStyle = "#22304a"; ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = "#0d1626"; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
   ctx.fillStyle = "#3a4f73"; ctx.fillRect(x + 2, y + 2, w - 4, 12);
   ctx.font = "9px 'Fusion Pixel',monospace"; ctx.textBaseline = "middle";
   ctx.textAlign = "center"; ctx.fillStyle = "#ffe6a8"; ctx.fillText("今日订单", x + w / 2, y + 8);
-  const rows = [["进口", "8", "#8fd0ff"], ["出口", "12", "#9be58a"], ["处理中", "5", "#ffd27a"], ["已完成", "18", "#cfd8e6"]];
+  const hot = processing >= 20; // 处理中堆多了 → 标红提醒
+  const rows: [string, string, string][] = [
+    ["进口", "8", "#8fd0ff"], ["出口", "12", "#9be58a"],
+    ["处理中", String(Math.min(999, processing)), hot ? "#ff6b6b" : "#ffd27a"],
+    ["已完成", String(completed), "#cfd8e6"],
+  ];
   ctx.font = "8px 'Fusion Pixel',monospace";
   rows.forEach((r, i) => {
     const ry = y + 22 + i * 11;
     ctx.textAlign = "left"; ctx.fillStyle = "#aeb9cc"; ctx.fillText(r[0], x + 8, ry);
     ctx.textAlign = "right"; ctx.fillStyle = r[2]; ctx.fillText(r[1], x + w - 8, ry);
   });
+}
+
+// 新订单进来：随机一个开放区同事头顶冒「+1」上浮淡出（纯时间驱动，无状态）
+function orderPop(ctx: CanvasRenderingContext2D, slots: NpcSlot[], t: number) {
+  const front = slots.filter((s) => !s.room);
+  if (!front.length) return;
+  const CYCLE = 3600, SHOW = 1500;
+  const idx = Math.floor(t / CYCLE);
+  const phase = t % CYCLE;
+  if (phase > SHOW) return;
+  const slot = front[(idx * 5 + 2) % front.length];
+  const up = phase / SHOW;
+  const yy = slot.y - 26 - up * 20;
+  const a = up < 0.15 ? up / 0.15 : 1 - up;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, a));
+  ctx.font = "10px 'Fusion Pixel',monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineWidth = 3; ctx.strokeStyle = "rgba(20,12,6,0.75)"; ctx.strokeText("+1", slot.x, yy);
+  ctx.fillStyle = "#ffd15a"; ctx.fillText("+1", slot.x, yy);
+  ctx.restore();
 }
 
 function drawPlaque(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
@@ -145,13 +170,13 @@ function bubble(ctx: CanvasRenderingContext2D, cx: number, topY: number, emoji: 
   ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(emoji, cx, y + 5);
 }
 
-export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; doneIds?: Set<PersonaId>; timeMs: number; }
+export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; doneIds?: Set<PersonaId>; backlog?: number; timeMs: number; }
 
 export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   const im = s.images, t = s.timeMs;
   ctx.clearRect(0, 0, VW, VH);
   drawFloorWalls(ctx, im);
-  drawOrderBoard(ctx, 96, 42);
+  drawOrderBoard(ctx, 96, 42, 5 + (s.backlog ?? 0), 18 + Math.floor(t / 15000));
   drawReception(ctx);
   drawBossRoom(ctx, im);
   // 开放区陈设
@@ -180,6 +205,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
     else bubble(ctx, cx, topY, slot.emoji, hi);
     nameTag(ctx, cx, by + 16, slot.name, hi, done);
   }
+  orderPop(ctx, s.slots, t);
 }
 
 export function hitTest(slots: NpcSlot[], vx: number, vy: number): PersonaId | null {
