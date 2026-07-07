@@ -231,6 +231,11 @@ export default function Play() {
           <button className="restart-btn" onClick={() => { sfx("ui"); setManualShare(true); }} title="把当前战绩分享到小红书">📤 分享</button>
           <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
+          <button className="btn btn-accent diag-btn" disabled={!ready}
+            onClick={() => { sfx("diagnose"); setDiagnose(true); }}
+            title={ready ? "写下你判断的真痛点+建议，主管会对照真相点评打分" : "先多跟几个同事聊聊、集齐线索再下结论"}>
+            📝 提交诊断
+          </button>
         </div>
       </div>
 
@@ -275,16 +280,6 @@ export default function Play() {
             </div>
           )}
         </aside>
-      </div>
-
-      {/* 底部：唯一主行动 */}
-      <div className="invest-cta">
-        <span className="cta-hint">
-          {ready ? "差不多摸清了？把你的诊断交给主管。" : "先多跟几个同事聊聊，集齐线索再下结论。"}
-        </span>
-        <button className="btn btn-accent cta-btn" disabled={!ready} onClick={() => { sfx("diagnose"); setDiagnose(true); }}>
-          📝 提交你的诊断
-        </button>
       </div>
 
       <Link href="/" className="exit-link">← 退出</Link>

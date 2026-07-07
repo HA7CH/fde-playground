@@ -263,8 +263,9 @@ function chatBubble(ctx: CanvasRenderingContext2D, cx: number, topY: number, tex
 
 export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; doneIds?: Set<PersonaId>; boost?: number; gameMs?: number; timeMs: number; }
 
-// ===== 起身走动：每人隔一两分钟去右上角饮水机喝口水再回来（纯时间驱动，无状态）=====
-const COOLER = { x: 332, y: 140 };
+// ===== 起身走动：每人隔一两分钟去饮水机喝口水再回来（纯时间驱动，无状态）=====
+// 放在「WELCOME」牌下方、阿凯工位与老板办公室之间的空地（不挡绿植、不压工位）
+const COOLER = { x: 350, y: 250 };
 function easeIO(u: number) { return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; }
 /** 返回 null=在工位；否则 {x,y,drinking} 当前走动位置 */
 function wanderPos(slot: NpcSlot, i: number, t: number): { x: number; y: number; drinking: boolean } | null {

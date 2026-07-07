@@ -223,6 +223,11 @@ img { image-rendering: pixelated; }
 .prog b { color: var(--good); }
 .restart-btn { font-family: var(--pixel); font-size: 12px; color: var(--ink2); background: var(--paper); border: 2px solid var(--ink); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
 .restart-btn:hover { color: var(--accent-d); background: #fff; }
+/* 顶栏里的「提交诊断」主行动：醒目橙、比 chip 略大，替代原来底部独占一行的 CTA */
+.diag-btn { font-size: 13px; padding: 6px 14px; }
+.diag-btn:not(:disabled) { animation: diagReady 1.8s ease-in-out infinite; }
+@keyframes diagReady { 0%,100% { box-shadow: inset 0 0 0 2px rgba(255,240,210,.4), 0 4px 0 #7d3a10; } 50% { box-shadow: inset 0 0 0 2px rgba(255,240,210,.4), 0 4px 0 #7d3a10, 0 0 12px rgba(216,114,46,.7); } }
+@media (prefers-reduced-motion: reduce) { .diag-btn:not(:disabled) { animation: none; } }
 /* 换日横幅（21:00 收工 → 次日早 9 点） */
 .day-toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 96; font-size: 13px; padding: 10px 18px; white-space: nowrap; animation: dayIn .4s ease-out both; }
 @keyframes dayIn { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
