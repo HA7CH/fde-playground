@@ -229,3 +229,9 @@ export const ROSTER: RosterEntry[] = [
   { id: "c1", x: 90, y: 178 }, { id: "clerk", x: 200, y: 178 }, { id: "s1", x: 310, y: 178 },
   { id: "s2", x: 90, y: 258 }, { id: "c2", x: 200, y: 258 }, { id: "sales", x: 310, y: 258 },
 ];
+
+/** 下班时刻表（游戏小时）：业务员 18:00 走、阿强 19:00、老王/阿杰 19:30、老板 20:00、婷婷主力天天加班到收工。
+ * 下班后人不在工位、也聊不了——明早 9 点回来（玩家可 ⏩ 快进）。*/
+export const OFF_DUTY: Record<string, number> = {
+  sales: 18, s1: 18, s2: 18, manager: 19, c1: 19.5, c2: 19.5, boss: 20, clerk: 21,
+};

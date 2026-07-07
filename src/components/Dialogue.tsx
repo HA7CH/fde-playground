@@ -19,6 +19,7 @@ export default function Dialogue({
   onClues,
   onClose,
   event,
+  variant = "modal",
 }: {
   persona: Persona;
   sessionId: string;
@@ -30,6 +31,8 @@ export default function Dialogue({
   onClose: () => void;
   /** 事件场景：换浮层背景 + 顶部旁白（不传则是普通工位对话） */
   event?: { backdropClass: string; caption: string };
+  /** modal=全屏浮层(事件场景用)；panel=嵌进右侧面板(日常聊天) */
+  variant?: "modal" | "panel";
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(
     seed.length ? seed : [{ role: "assistant", content: persona.opening }],
@@ -95,9 +98,8 @@ export default function Dialogue({
     }
   }
 
-  return (
-    <div className={`dlg-backdrop ${event?.backdropClass ?? ""}`} onClick={close}>
-      <div className="dlg-window panel" ref={windowRef} onClick={(e) => e.stopPropagation()}>
+  const win = (
+      <div className={`dlg-window panel ${variant === "panel" ? "chat-embed" : ""}`} ref={windowRef} onClick={(e) => e.stopPropagation()}>
         <div className="dlg-bar" style={{ background: persona.color }}>
           <div className="dlg-portrait"><img src={portrait} alt={persona.title} /></div>
           <div className="dlg-name"><b>{persona.name}</b><span>{persona.emoji} {persona.title} · WAYBOUND 货代</span></div>
@@ -134,6 +136,12 @@ export default function Dialogue({
           <button className="btn btn-accent" onClick={send} disabled={busy || !input.trim()}>发送</button>
         </div>
       </div>
+  );
+
+  if (variant === "panel") return win;
+  return (
+    <div className={`dlg-backdrop ${event?.backdropClass ?? ""}`} onClick={close}>
+      {win}
     </div>
   );
 }

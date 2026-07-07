@@ -28,7 +28,7 @@ export const SPRITE_FILES: Record<string, string> = {
   sofa: "/assets/sprites2/sofa.png", clock: "/assets/sprites2/clock.png", whiteboard: "/assets/sprites2/whiteboard.png",
 };
 
-export interface NpcSlot { id: PersonaId; name: string; emoji: string; sprite: string; x: number; y: number; room?: boolean; }
+export interface NpcSlot { id: PersonaId; name: string; emoji: string; sprite: string; x: number; y: number; room?: boolean; offH?: number; }
 
 function nat(im?: HTMLImageElement) { return im ? { w: im.naturalWidth / 4, h: im.naturalHeight / 4 } : { w: 0, h: 0 }; }
 function blit(ctx: CanvasRenderingContext2D, im: HTMLImageElement | undefined, dx: number, dy: number) {
@@ -172,12 +172,12 @@ function drawBossRoom(ctx: CanvasRenderingContext2D, im: ImageMap) {
 // ===== 一天的光照：清晨柔光 → 正午最亮 → 下午金黄 → 黄昏橙 → 夜里偏蓝暗 =====
 // 关键帧: [时刻, r, g, b, multiply强度, 暗角系数, 夜幕蓝强度]
 const LIGHT_KF: number[][] = [
-  [9, 255, 236, 205, 0.12, 0.9, 0],
-  [12, 255, 246, 228, 0.06, 0.72, 0],
-  [15, 255, 228, 182, 0.15, 0.95, 0],
-  [18, 255, 196, 148, 0.24, 1.15, 0.05],
-  [19.5, 150, 160, 200, 0.16, 1.3, 0.16],
-  [21, 110, 125, 185, 0.22, 1.45, 0.27],
+  [9, 255, 241, 216, 0.07, 0.82, 0],
+  [11.5, 255, 249, 234, 0.04, 0.68, 0],
+  [14.5, 255, 236, 202, 0.09, 0.82, 0],
+  [17, 255, 219, 176, 0.13, 0.98, 0.02],
+  [18.75, 208, 190, 200, 0.12, 1.1, 0.1],
+  [21, 132, 145, 192, 0.16, 1.28, 0.2],
 ];
 function lightAt(gh: number): number[] {
   if (gh <= LIGHT_KF[0][0]) return LIGHT_KF[0];
@@ -205,11 +205,14 @@ function postGrade(ctx: CanvasRenderingContext2D, t: number, gh: number) {
   ctx.restore();
 }
 
-function nameTag(ctx: CanvasRenderingContext2D, cx: number, by: number, name: string, hi: boolean, done = false) {
+function nameTag(ctx: CanvasRenderingContext2D, cx: number, by: number, name: string, hi: boolean, done = false, off = false) {
   ctx.font = "8px 'Fusion Pixel',monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   const w = Math.max(ctx.measureText(name).width + 8, 22), x = Math.round(cx - w / 2), y = Math.round(by + 3);
+  ctx.save();
+  if (off) ctx.globalAlpha = 0.45; // 已下班：名牌压暗
   ctx.fillStyle = hi ? "rgba(201,93,46,0.96)" : done ? "rgba(52,116,66,0.92)" : "rgba(30,22,38,0.82)"; ctx.fillRect(x, y, Math.round(w), 12);
   ctx.fillStyle = "#f6efe2"; ctx.fillText(name, cx, y + 6);
+  ctx.restore();
 }
 // 已问干净：头顶挂一个绿色 ✓ 徽章，替代 idle emoji 气泡
 function doneBadge(ctx: CanvasRenderingContext2D, cx: number, topY: number) {
@@ -234,13 +237,17 @@ const CHAT_LINES: [string, string][] = [
   ["客户又催了", "顶住！"], ["VGM 发了没", "这就发"], ["系统又卡了", "重启大法"],
   ["这票谁跟的", "问婷婷"], ["下班球赛看不", "加班呢…"],
 ];
-/** 当前谁在说话：null 或 { id, line } */
-function chatState(t: number): { id: string; line: string } | null {
+/** 当前谁在说话：null 或 { id, line }。午休吃饭 / 傍晚陆续下班后不再闲聊。 */
+function chatState(t: number, gh: number, offMap: Record<string, number | undefined>): { id: string; line: string } | null {
+  if (gh >= 17.5 || (gh >= 12 && gh < 13)) return null; // 傍晚人走差不多了 / 午休——安静
   const CYC = 15_000, WIN = 5000;
   const ph = t % CYC;
   if (ph > WIN) return null;
   const i = Math.floor(t / CYC);
   const pair = CHAT_PAIRS[i % CHAT_PAIRS.length];
+  // 这一对里有人下班了就不说（避免落单自言自语）
+  const offH0 = offMap[pair[0]], offH1 = offMap[pair[1]];
+  if ((offH0 != null && gh >= offH0) || (offH1 != null && gh >= offH1)) return null;
   const lines = CHAT_LINES[(i * 7 + 3) % CHAT_LINES.length];
   const who = ph < WIN / 2 ? 0 : 1;
   return { id: pair[who], line: lines[who] };
@@ -254,10 +261,10 @@ function chatBubble(ctx: CanvasRenderingContext2D, cx: number, topY: number, tex
   ctx.fillStyle = "#3a2a1a"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, x + w / 2, y + h / 2 + 0.5);
 }
 
-export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; doneIds?: Set<PersonaId>; backlog?: number; gameMs?: number; timeMs: number; }
+export interface DrawState { images: ImageMap; slots: NpcSlot[]; hoveredId: PersonaId | null; doneIds?: Set<PersonaId>; boost?: number; gameMs?: number; timeMs: number; }
 
-// ===== 起身走动：每人隔一两分钟去左下角饮水机喝口水再回来（纯时间驱动，无状态）=====
-const COOLER = { x: 62, y: 274 };
+// ===== 起身走动：每人隔一两分钟去右上角饮水机喝口水再回来（纯时间驱动，无状态）=====
+const COOLER = { x: 332, y: 140 };
 function easeIO(u: number) { return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; }
 /** 返回 null=在工位；否则 {x,y,drinking} 当前走动位置 */
 function wanderPos(slot: NpcSlot, i: number, t: number): { x: number; y: number; drinking: boolean } | null {
@@ -279,15 +286,18 @@ function wanderPos(slot: NpcSlot, i: number, t: number): { x: number; y: number;
 export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   const im = s.images, t = s.timeMs;
   const gh = 9 + (((s.gameMs ?? 0) / 3_600_000) % 12); // 当前游戏时刻 9..21
+  const boost = s.boost ?? 0; // 提效%（彩蛋级环境反馈：订单板随诊断变好）
   ctx.clearRect(0, 0, VW, VH);
   drawFloorWalls(ctx, im, gh);
-  drawOrderBoard(ctx, 96, 42, 5 + (s.backlog ?? 0), 18 + Math.floor((s.gameMs ?? 0) / 1_800_000));
+  drawOrderBoard(ctx, 96, 42,
+    Math.max(4, 26 - Math.round(boost / 3)),
+    18 + Math.floor(((s.gameMs ?? 0) / 3_600_000) * (2 + boost / 12)));
   drawReception(ctx);
   drawBossRoom(ctx, im);
-  // 开放区陈设 + 饮水机
+  // 开放区陈设 + 饮水机(右上，不挡花)
   blitCB(ctx, im.plant_large, 16, VH);
   blitCB(ctx, im.plant_large, 348, VH);
-  drawCooler(ctx, COOLER.x - 14, COOLER.y + 10);
+  drawCooler(ctx, COOLER.x - 16, COOLER.y + 8);
 
   const pods = [...s.slots].sort((a, b) => a.y - b.y);
   const frame = t % 760 < 380 ? "0" : "1";
@@ -296,12 +306,16 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   for (let pi = 0; pi < pods.length; pi++) {
     const slot = pods[pi];
     const cx = slot.x, by = slot.y, hi = s.hoveredId === slot.id;
-    const away = wanderPos(slot, s.slots.indexOf(slot), t);
+    const off = slot.offH != null && gh >= slot.offH; // 下过班了：人不在、显示器关了
+    const away = off ? null : wanderPos(slot, s.slots.indexOf(slot), t);
     if (hi) { ctx.fillStyle = "rgba(255,220,140,0.25)"; ctx.beginPath(); ctx.ellipse(cx, by + 6, 20, 7, 0, 0, Math.PI * 2); ctx.fill(); }
     blitCB(ctx, im.desk, cx, by);
     blitCB(ctx, im.monitor, cx, by - 5);
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = `rgba(120,210,150,${(0.06 + 0.05 * Math.sin(t / 220 + cx)) * glow})`; ctx.fillRect(cx - 6, by - 33, 12, 8); ctx.restore();
+    if (!off) {
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = `rgba(120,210,150,${(0.06 + 0.05 * Math.sin(t / 220 + cx)) * glow})`; ctx.fillRect(cx - 6, by - 33, 12, 8); ctx.restore();
+    }
+    if (off) continue;
     if (away) { walkers.push({ slot, pos: away }); continue; } // 人不在工位：稍后画在最上层
     ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.beginPath(); ctx.ellipse(cx, by + 15, hi ? 11 : 9, hi ? 3 : 2.5, 0, 0, Math.PI * 2); ctx.fill();
     blitCB(ctx, im[`${slot.sprite}_${frame}`], cx, by + 15, hi ? 1.06 : 1, hi ? 0.98 : 1);
@@ -317,23 +331,28 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: DrawState) {
   }
   postGrade(ctx, t, gh);
   const lunch = gh >= 12 && gh < 13;
-  const cs = chatState(t); // 谁在跟邻座搭话
+  const offMap: Record<string, number | undefined> = {};
+  for (const sl of s.slots) offMap[sl.id] = sl.offH;
+  const cs = chatState(t, gh, offMap); // 谁在跟邻座搭话
   for (const slot of pods) {
     const cx = slot.x, by = slot.y, hi = s.hoveredId === slot.id;
     const done = s.doneIds?.has(slot.id) ?? false;
-    const away = wanderPos(slot, s.slots.indexOf(slot), t);
+    const off = slot.offH != null && gh >= slot.offH;
+    const away = off ? null : wanderPos(slot, s.slots.indexOf(slot), t);
     if (hi) { ctx.strokeStyle = "rgba(255,214,140,0.9)"; ctx.lineWidth = 1; ctx.strokeRect(cx - 13, by - 6, 26, 24); }
     const topY = by - 3 + (frame === "1" ? -1 : 0);
     // 午休吃饭/晚上加班的表情覆盖
     let em = slot.emoji;
     if (lunch) em = ["🍚", "🍜", "😴", "🍵"][(slot.x + slot.y) % 4];
     else if (gh >= 19 && (slot.x + slot.y) % 3 === 0) em = "☕";
-    if (done) doneBadge(ctx, cx, topY);
-    else if (!away) {
-      if (cs && cs.id === slot.id) chatBubble(ctx, cx, topY, cs.line);
-      else bubble(ctx, cx, topY, em, hi);
+    if (!off) {
+      if (done) doneBadge(ctx, cx, topY);
+      else if (!away) {
+        if (cs && cs.id === slot.id) chatBubble(ctx, cx, topY, cs.line);
+        else bubble(ctx, cx, topY, em, hi);
+      }
     }
-    nameTag(ctx, cx, by + 16, slot.name, hi, done);
+    nameTag(ctx, cx, by + 16, slot.name, hi, done, off);
   }
   orderPop(ctx, s.slots, t, gh);
 }

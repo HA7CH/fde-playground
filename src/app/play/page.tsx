@@ -8,7 +8,7 @@ import DiagnoseModal from "@/components/DiagnoseModal";
 import ShareModal from "@/components/ShareModal";
 import SoundToggle from "@/components/SoundToggle";
 import GitHubLink from "@/components/GitHubLink";
-import { ALL_CLUES, KEY_CLUE_IDS, NPCS } from "@/lib/personas";
+import { ALL_CLUES, KEY_CLUE_IDS, NPCS, OFF_DUTY } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
 import { sfx } from "@/lib/sfx";
 
@@ -29,11 +29,10 @@ function fmt(ms: number) {
 const GAME_SPEED = 60;                 // 现实 1ms = 游戏 60ms
 const GH = 3_600_000;                  // 1 游戏小时（游戏 ms）
 const DAY_START = 9, DAY_END = 21, DAY_LEN = DAY_END - DAY_START;
-// 订单节奏（可调）：开局旧账 14；9:00 早高峰 +12、13:00 午后 +8；团队全天消化 2 单/游戏小时（午休 12-13 停）；每条★核心线索 −6
-const BASE_BACKLOG = 14, BURST_AM = 12, BURST_PM = 8, DIGEST_PER_H = 2, CLUE_RELIEF = 6;
-// 积压堆到这个数还没什么进展 → 老板主动出来堵你（第1天午后无★≈26 会触发；挖到1条★=20 不会）
-const BOSS_PUSH_AT = 24;
-const BOSS_PUSH_MSG = "（李总从里间冲出来，把一沓单子拍在你桌上）小伙子，你自己看看——处理中都堆成山了！我请你来是把事捋顺的，不是陪大家聊天的。给我句准话：问题到底出在哪？多久能见效？";
+// 提效：每挖到一条★核心痛点，团队效率 +8%（你在真的帮这家公司提效——订单板跟着变好）
+const BOOST_PER_KEY = 8;
+// 进展太慢 → 老板主动出来催（第 1 天 15:00 还没挖到★，或次日以后仍原地踏步；每天最多一次）
+const BOSS_PUSH_MSG = "（李总从里间踱出来，敲了敲你的桌边）小伙子，来了也有阵子了吧？我可听阿强说你就四处转了转……说说，摸出个所以然没有？别绕弯子，我就要句实在话：问题到底出在哪？";
 
 function gameClock(gameMs: number) {
   const totalH = gameMs / GH;
@@ -42,15 +41,6 @@ function gameClock(gameMs: number) {
 function fmtClock(hod: number) {
   const h = Math.floor(hod), m = Math.floor((hod - h) * 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-/** 开工以来净新增订单（高峰进单 − 团队消化），gameMs 的纯函数，可随存档恢复 */
-function netOrders(gameMs: number) {
-  const dayNet = BURST_AM + BURST_PM - DIGEST_PER_H * (DAY_LEN - 1); // 午休 1h 不消化 → 每天净 −2（干等也能慢慢变好）
-  const fullDays = Math.floor(gameMs / (DAY_LEN * GH));
-  const hod = DAY_START + (gameMs % (DAY_LEN * GH)) / GH;
-  const bursts = BURST_AM + (hod >= 13 ? BURST_PM : 0);
-  const digestH = Math.min(hod, 12) - DAY_START + Math.max(0, Math.min(hod, DAY_END) - 13);
-  return fullDays * dayNet + bursts - DIGEST_PER_H * digestH;
 }
 
 export default function Play() {
@@ -68,7 +58,10 @@ export default function Play() {
   const [startedAt, setStartedAt] = useState<number | null>(null); // 首次点开同事时开始计时（持久化，刷新不重置）
   const [nowTs, setNowTs] = useState(0); // 当前时间戳，每秒 tick 刷新计时显示
   const [skipMs, setSkipMs] = useState(0); // ⏩ +1h 快进累计的游戏毫秒（持久化）
+  const [chatMs, setChatMs] = useState(0); // 聊天累计时长——聊天不吃游戏钟（开罗铁律），持久化
   const [dayToast, setDayToast] = useState<number | null>(null); // 换日横幅
+  const [npcToast, setNpcToast] = useState<string | null>(null); // "TA 下班了"之类的小提示
+  const [noteOpen, setNoteOpen] = useState(true); // 线索板折叠（手机默认收起）
 
   // 恢复上次进度（仅客户端）。sessionId 也持久化——同一玩家多次会话串成一条采集记录。
   useEffect(() => {
@@ -81,9 +74,11 @@ export default function Play() {
       if (Array.isArray(s?.firedEvents)) setFiredEvents(new Set(s.firedEvents));
       if (typeof s?.startedAt === "number") setStartedAt(s.startedAt);
       if (typeof s?.skipMs === "number") setSkipMs(s.skipMs);
+      if (typeof s?.chatMs === "number") setChatMs(s.chatMs);
     } catch {
       setSessionId(newSessionId());
     }
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches) setNoteOpen(false);
     setNowTs(Date.now());
     setHydrated(true);
   }, []);
@@ -93,28 +88,33 @@ export default function Play() {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        sessionId, histories, found: [...found], firedEvents: [...firedEvents], startedAt, skipMs,
+        sessionId, histories, found: [...found], firedEvents: [...firedEvents], startedAt, skipMs, chatMs,
       }));
     } catch { /* 隐私模式/超额，忽略 */ }
-  }, [hydrated, sessionId, histories, found, firedEvents, startedAt, skipMs]);
+  }, [hydrated, sessionId, histories, found, firedEvents, startedAt, skipMs, chatMs]);
 
-  // 计时：首次点开同事后每秒刷新显示
+  // 计时：首次点开同事后每秒刷新显示；聊天中把这一秒记进 chatMs（游戏钟冻结，聊天不吃钟）
+  const activeRef = useRef<PersonaId | null>(null);
+  useEffect(() => { activeRef.current = active; }, [active]);
   useEffect(() => {
     if (startedAt == null) return;
-    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    const id = setInterval(() => {
+      setNowTs(Date.now());
+      if (activeRef.current != null) setChatMs((c) => c + 1000);
+    }, 1000);
     return () => clearInterval(id);
   }, [startedAt]);
 
   const elapsedMs = startedAt != null ? Math.max(0, nowTs - startedAt) : 0;
-  const gameMs = startedAt != null ? elapsedMs * GAME_SPEED + skipMs : 0;
+  // 游戏钟只在"逛办公室"时走：聊天时长(chatMs)不折算成游戏时间
+  const gameMs = startedAt != null ? Math.max(0, elapsedMs - chatMs) * GAME_SPEED + skipMs : 0;
   const { day, hod } = gameClock(gameMs);
   const shownElapsedMs = elapsedMs + skipMs / GAME_SPEED; // ⏩ 快进的钟点也算进你的用时（战绩公平）
 
   const talkedCount = Object.keys(histories).filter((id) => (histories[id] ?? []).some((m) => m.role === "user")).length;
   const keyFound = [...found].filter((id) => KEY_CLUE_IDS.includes(id)).length;
-  // 积压 = 开局旧账 + 订单节奏（高峰进单、团队全天消化、午休停）− 每条★核心痛点×6。
-  // 两条清法：挖到★立减（诊断对=团队真提效）、或等时间/⏩快进让团队自己消化。只是面子分，不卡任何门槛。
-  const backlog = startedAt != null ? Math.max(0, Math.floor(BASE_BACKLOG + netOrders(gameMs) - keyFound * CLUE_RELIEF)) : 0;
+  // 提效 = 你挖出的★核心痛点 × 8%。顾问不做系统也不碰单——你交付的是"指对堵点"，效率跟着涨。
+  const boost = keyFound * BOOST_PER_KEY;
   const total = ALL_CLUES.length;
   const ready = talkedCount >= 2 || found.size >= 3;
 
@@ -132,13 +132,7 @@ export default function Play() {
     }
   }, [day, startedAt]);
 
-  const skipHour = () => {
-    if (startedAt == null) return;
-    sfx("ui");
-    setSkipMs((s) => s + GH);
-  };
-
-  // 作息音效提醒：12:00 午休铃 / 13:00 回工位 / 18:00 下班铃(进加班时段)
+  // 作息音效提醒：12:00 午休铃 / 13:00 回工位 / 18:00 下班铃(业务员们回家了)
   const hourRef = useRef<number | null>(null);
   useEffect(() => {
     if (startedAt == null) { hourRef.current = null; return; }
@@ -153,7 +147,13 @@ export default function Play() {
 
   const addClues = (ids: string[]) => {
     const fresh = ids.filter((i) => !found.has(i));
-    if (fresh.length) sfx(fresh.some((i) => KEY_CLUE_IDS.includes(i)) ? "clueKey" : "clue");
+    const freshKeys = fresh.filter((i) => KEY_CLUE_IDS.includes(i)).length;
+    if (fresh.length) sfx(freshKeys > 0 ? "clueKey" : "clue");
+    // 彩蛋级提效反馈：挖到★时飘一条小提示，订单板悄悄变好——不进顶栏、不抢主流程
+    if (freshKeys > 0) {
+      setNpcToast(`⚡ 你指对了一处堵点 · 团队提效 +${freshKeys * BOOST_PER_KEY}%`);
+      setTimeout(() => setNpcToast(null), 2600);
+    }
     setFound((s) => { const n = new Set(s); ids.forEach((i) => n.add(i)); return n; });
   };
 
@@ -173,23 +173,43 @@ export default function Play() {
     }
   }, [found, firedEvents]);
 
-  // NPC 主动来找你（通用管道：往 TA 的聊天记录里注入一条"走过来"的开场白 + 自动弹开对话）。
-  // 用例1：积压堆到 BOSS_PUSH_AT 还没进展 → 老板出来堵你催准话（白天版"酒桌逼单"，看你敢不敢顶住不过度承诺）。
+  // NPC 主动来找你（通用管道：往 TA 的聊天记录里注入一条"走过来"的开场白 + 自动打开聊天）。
+  // 用例1：进展太慢 → 老板出来催准话（第1天15:00仍0★，或第2天起仍≤1★；每天最多一次）。
   useEffect(() => {
-    if (startedAt == null || backlog < BOSS_PUSH_AT || firedEvents.has("bosspush")) return;
+    if (startedAt == null) return;
+    const pushKey = `bosspush-d${day}`;
+    if (firedEvents.has(pushKey)) return;
+    const slow = (day === 1 && hod >= 15 && keyFound === 0) || (day >= 2 && keyFound <= 1);
+    if (!slow) return;
     if (active || pendingEvent || pendingShare || diagnose) return; // 不打断进行中的对话/弹窗
-    setFiredEvents((s) => new Set(s).add("bosspush"));
+    setFiredEvents((s) => new Set(s).add(pushKey));
     setHistories((h) => ({ ...h, boss: [...(h.boss ?? []), { role: "assistant" as const, content: BOSS_PUSH_MSG }] }));
     setActive("boss");
     sfx("event");
-  }, [backlog, startedAt, firedEvents, active, pendingEvent, pendingShare, diagnose]);
+  }, [hod, day, keyFound, startedAt, firedEvents, active, pendingEvent, pendingShare, diagnose]);
 
   const restart = () => {
     try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
     setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
     setPendingEvent(null); setPendingShare(false); setManualShare(false); setDiagnose(false);
-    setStartedAt(null); setNowTs(Date.now()); setSkipMs(0); setDayToast(null);
+    setStartedAt(null); setNowTs(Date.now()); setSkipMs(0); setChatMs(0); setDayToast(null); setNpcToast(null);
     setSessionId(newSessionId());
+  };
+
+  const selectNpc = (id: PersonaId) => {
+    const t = Date.now();
+    setStartedAt((v) => v ?? t);
+    setNowTs(t);
+    // 下班守卫：人走了就聊不了（明早 9 点回来，或 ⏩ 快进）
+    const offH = OFF_DUTY[id];
+    if (startedAt != null && offH != null && hod >= offH) {
+      sfx("close");
+      setNpcToast(`🌙 ${NPCS[id].name.split("（")[0]}已经下班了 · 明早 9 点就回来`);
+      setTimeout(() => setNpcToast(null), 2800);
+      return;
+    }
+    sfx("open");
+    setActive(id);
   };
 
   return (
@@ -205,38 +225,55 @@ export default function Play() {
           <span>🗣 已聊 <b>{talkedCount}</b> 人</span>
           <span>🔍 线索 <b>{found.size}</b>/{total}</span>
           <span>⏱ <b>{fmt(shownElapsedMs)}</b></span>
-          <span title="游戏内时间：9:00 上班 · 12:00-13:00 午休 · 21:00 收工自动跳次日早上">
+          <span title="游戏内时间：9:00 上班 · 12-13 午休 · 18:00 起同事陆续下班 · 21:00 收工跳次日 · 聊天时时间暂停">
             {hod >= 19 ? "🌙" : hod >= 12 && hod < 13 ? "🍚" : "🕘"} 第{day}天 <b>{fmtClock(hod)}</b>
           </span>
-          <span className={backlog >= 20 ? "prog-warn" : ""} title="早晚高峰会进单、团队全天消化（午休停）。挖到★核心痛点立减，或 ⏩ 快进等团队慢慢清">📦 积压 <b>{backlog}</b> 单</span>
-          <button className="restart-btn" onClick={skipHour} disabled={startedAt == null} title="快进 1 小时：让团队干会儿活消化订单（会算进你的用时）">⏩ +1h</button>
           <button className="restart-btn" onClick={() => { sfx("ui"); setManualShare(true); }} title="把当前战绩分享到小红书">📤 分享</button>
           <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
         </div>
       </div>
 
-      {/* 主体：办公室 + 线索笔记本 */}
+      {/* 主体：左=办公室场地；右=常驻面板（聊天时是聊天区，不聊时是线索板） */}
       <div className="invest-body">
         <div className="stage">
-          <Office onSelect={(id) => { sfx("open"); const t = Date.now(); setStartedAt((v) => v ?? t); setNowTs(t); setActive(id); }} found={found} backlog={backlog} gameMs={gameMs} />
+          <Office onSelect={selectNpc} found={found} boost={boost} gameMs={gameMs} />
         </div>
 
-        <aside className="note panel">
-          <div className="card-h">🔍 线索笔记本　<span style={{ float: "right", color: "var(--ink2)" }}>{found.size}/{total}</span></div>
-          <div className="note-list">
-            {ALL_CLUES.map((c) => {
-              const got = found.has(c.id);
-              return (
-                <div key={c.id} className={`note-row ${got ? "got" : "locked"}`}>
-                  <span className="mk">{got ? (c.key ? "★" : "✓") : "·"}</span>
-                  <span className="tx">{got ? c.label : "？？？ 还没问出来"}</span>
-                  {got && <span className="src">{c.ownerName}</span>}
-                </div>
-              );
-            })}
-          </div>
-          <div className="note-foot">★ = 核心痛点线索　·　点办公室里的同事问出更多</div>
+        <aside className="side">
+          {active ? (
+            <Dialogue
+              key={active}
+              variant="panel"
+              persona={NPCS[active]}
+              sessionId={sessionId}
+              seed={histories[active] ?? []}
+              found={found}
+              onPersist={(msgs) => setHistories((h) => ({ ...h, [active]: msgs }))}
+              onClues={addClues}
+              onClose={() => setActive(null)}
+            />
+          ) : (
+            <div className={`note panel ${noteOpen ? "" : "folded"}`}>
+              <button className="card-h note-head" onClick={() => setNoteOpen((v) => !v)}>
+                🔍 线索笔记本　<span className="note-count">{found.size}/{total}</span>
+                <span className="note-caret">{noteOpen ? "▾" : "▸"}</span>
+              </button>
+              <div className="note-list">
+                {ALL_CLUES.map((c) => {
+                  const got = found.has(c.id);
+                  return (
+                    <div key={c.id} className={`note-row ${got ? "got" : "locked"}`}>
+                      <span className="mk">{got ? (c.key ? "★" : "✓") : "·"}</span>
+                      <span className="tx">{got ? c.label : "？？？ 还没问出来"}</span>
+                      {got && <span className="src">{c.ownerName}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="note-foot">★ = 核心痛点线索　·　点办公室里的同事问出更多</div>
+            </div>
+          )}
         </aside>
       </div>
 
@@ -253,27 +290,17 @@ export default function Play() {
       <Link href="/" className="exit-link">← 退出</Link>
       <GitHubLink />
 
-      {/* 换日横幅：21:00 收工 → 次日早 9 点 */}
+      {/* 换日/下班小横幅 */}
       {dayToast != null && (
-        <div className="day-toast panel">🌙 昨晚加完班收了工 · ☀️ 第 {dayToast} 天早上，接着摸</div>
+        <div className="day-toast panel">🌙 昨晚收了工 · ☀️ 第 {dayToast} 天早上，接着摸</div>
       )}
+      {npcToast != null && <div className="day-toast panel">{npcToast}</div>}
 
-      {active && (
-        <Dialogue
-          persona={NPCS[active]}
-          sessionId={sessionId}
-          seed={histories[active] ?? []}
-          found={found}
-          onPersist={(msgs) => setHistories((h) => ({ ...h, [active]: msgs }))}
-          onClues={addClues}
-          onClose={() => setActive(null)}
-        />
-      )}
       {/* 分享弹窗：集满 3 条自动弹一次 + 顶栏「📤 分享」随时手动打开（数字都取当下战绩） */}
       {(pendingShare || manualShare) && !active && !pendingEvent && (
-        <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={day} backlog={backlog} onClose={() => { setPendingShare(false); setManualShare(false); }} />
+        <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={day} boost={boost} onClose={() => { setPendingShare(false); setManualShare(false); }} />
       )}
-      {/* 事件：老板酒局。等玩家聊完当前同事（active 为空）再开场，不叠在普通对话上 */}
+      {/* 事件：老板酒局（全屏大排档场景，保留浮层仪式感）。等玩家聊完当前同事再开场 */}
       {pendingEvent && !active && (
         <Dialogue
           persona={NPCS[pendingEvent]}
