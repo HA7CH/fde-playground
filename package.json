@@ -2,12 +2,14 @@
   "name": "fde-playground",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "HATCH FDE 货代实战擂台 — 摸需求像素办公室前门",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "tsc --noEmit",
+    "test:logic": "node --test src/lib/progress.test.mjs src/lib/leaderboard.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

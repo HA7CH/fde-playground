@@ -8,8 +8,17 @@ import DiagnoseModal from "@/components/DiagnoseModal";
 import ShareModal from "@/components/ShareModal";
 import SoundToggle from "@/components/SoundToggle";
 import GitHubLink from "@/components/GitHubLink";
+import LeaderboardPanel from "@/components/LeaderboardPanel";
 import { ALL_CLUES, KEY_CLUE_IDS, NPCS, OFF_DUTY } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
+import {
+  buildRestartSnapshot,
+  elapsedForRun,
+  gameClock,
+  gameMsForRun,
+  maybeCompleteRun,
+  pickDisplayedTiming,
+} from "@/lib/progress";
 import { sfx } from "@/lib/sfx";
 
 const STORE_KEY = "fde-play-v1"; // localStorage 键（改结构就 bump 版本）
@@ -25,19 +34,11 @@ function fmt(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-// ===== 游戏时间系统：1 现实秒 = 1 游戏分钟；每天 9:00 上班 → 21:00 收工（自动跳次日早 9 点）=====
-const GAME_SPEED = 60;                 // 现实 1ms = 游戏 60ms
-const GH = 3_600_000;                  // 1 游戏小时（游戏 ms）
-const DAY_START = 9, DAY_END = 21, DAY_LEN = DAY_END - DAY_START;
 // 提效：每挖到一条★核心痛点，团队效率 +8%（你在真的帮这家公司提效——订单板跟着变好）
 const BOOST_PER_KEY = 8;
 // 进展太慢 → 老板主动出来催（第 1 天 15:00 还没挖到★，或次日以后仍原地踏步；每天最多一次）
 const BOSS_PUSH_MSG = "（李总从里间踱出来，敲了敲你的桌边）小伙子，来了也有阵子了吧？我可听阿强说你就四处转了转……说说，摸出个所以然没有？别绕弯子，我就要句实在话：问题到底出在哪？";
 
-function gameClock(gameMs: number) {
-  const totalH = gameMs / GH;
-  return { day: Math.floor(totalH / DAY_LEN) + 1, hod: DAY_START + (totalH % DAY_LEN) };
-}
 function fmtClock(hod: number) {
   const h = Math.floor(hod), m = Math.floor((hod - h) * 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -59,6 +60,12 @@ export default function Play() {
   const [nowTs, setNowTs] = useState(0); // 当前时间戳，每秒 tick 刷新计时显示
   const [skipMs, setSkipMs] = useState(0); // ⏩ +1h 快进累计的游戏毫秒（持久化）
   const [chatMs, setChatMs] = useState(0); // 聊天累计时长——聊天不吃游戏钟（开罗铁律），持久化
+  const [completion, setCompletion] = useState<{
+    completedAt: number;
+    finalElapsedMs: number;
+    finalGameMs: number;
+    finalDay: number;
+  } | null>(null);
   const [dayToast, setDayToast] = useState<number | null>(null); // 换日横幅
   const [npcToast, setNpcToast] = useState<string | null>(null); // "TA 下班了"之类的小提示
   const [noteOpen, setNoteOpen] = useState(true); // 线索板折叠（手机默认收起）
@@ -75,6 +82,7 @@ export default function Play() {
       if (typeof s?.startedAt === "number") setStartedAt(s.startedAt);
       if (typeof s?.skipMs === "number") setSkipMs(s.skipMs);
       if (typeof s?.chatMs === "number") setChatMs(s.chatMs);
+      if (s?.completion && typeof s.completion.finalElapsedMs === "number") setCompletion(s.completion);
     } catch {
       setSessionId(newSessionId());
     }
@@ -88,28 +96,30 @@ export default function Play() {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        sessionId, histories, found: [...found], firedEvents: [...firedEvents], startedAt, skipMs, chatMs,
+        sessionId, histories, found: [...found], firedEvents: [...firedEvents], startedAt, skipMs, chatMs, completion,
       }));
     } catch { /* 隐私模式/超额，忽略 */ }
-  }, [hydrated, sessionId, histories, found, firedEvents, startedAt, skipMs, chatMs]);
+  }, [hydrated, sessionId, histories, found, firedEvents, startedAt, skipMs, chatMs, completion]);
 
   // 计时：首次点开同事后每秒刷新显示；聊天中把这一秒记进 chatMs（游戏钟冻结，聊天不吃钟）
   const activeRef = useRef<PersonaId | null>(null);
   useEffect(() => { activeRef.current = active; }, [active]);
   useEffect(() => {
-    if (startedAt == null) return;
+    if (startedAt == null || completion) return;
     const id = setInterval(() => {
       setNowTs(Date.now());
       if (activeRef.current != null) setChatMs((c) => c + 1000);
     }, 1000);
     return () => clearInterval(id);
-  }, [startedAt]);
+  }, [startedAt, completion]);
 
-  const elapsedMs = startedAt != null ? Math.max(0, nowTs - startedAt) : 0;
+  const elapsedMs = elapsedForRun({ nowTs, startedAt, skipMs });
   // 游戏钟只在"逛办公室"时走：聊天时长(chatMs)不折算成游戏时间
-  const gameMs = startedAt != null ? Math.max(0, elapsedMs - chatMs) * GAME_SPEED + skipMs : 0;
+  const dynamicGameMs = gameMsForRun({ nowTs, startedAt, chatMs, skipMs });
+  const shown = pickDisplayedTiming({ completion, elapsedMs, gameMs: dynamicGameMs });
+  const gameMs = shown.gameMs;
   const { day, hod } = gameClock(gameMs);
-  const shownElapsedMs = elapsedMs + skipMs / GAME_SPEED; // ⏩ 快进的钟点也算进你的用时（战绩公平）
+  const shownElapsedMs = shown.elapsedMs; // ⏩ 快进的钟点也算进你的用时（战绩公平）
 
   const talkedCount = Object.keys(histories).filter((id) => (histories[id] ?? []).some((m) => m.role === "user")).length;
   const keyFound = [...found].filter((id) => KEY_CLUE_IDS.includes(id)).length;
@@ -117,6 +127,21 @@ export default function Play() {
   const boost = keyFound * BOOST_PER_KEY;
   const total = ALL_CLUES.length;
   const ready = talkedCount >= 2 || found.size >= 3;
+  const complete = Boolean(completion);
+
+  useEffect(() => {
+    if (!hydrated || completion || found.size < total) return;
+    const nextCompletion = maybeCompleteRun({
+      completion,
+      foundCount: found.size,
+      total,
+      nowTs: Date.now(),
+      startedAt,
+      chatMs,
+      skipMs,
+    });
+    if (nextCompletion) setCompletion(nextCompletion);
+  }, [hydrated, completion, found, total, startedAt, chatMs, skipMs]);
 
   // 收工换日：21:00 自动跳到次日早 9 点，弹一条横幅（null 起始 → 刷新恢复存档时不误弹）
   const dayRef = useRef<number | null>(null);
@@ -154,7 +179,24 @@ export default function Play() {
       setNpcToast(`⚡ 你指对了一处堵点 · 团队提效 +${freshKeys * BOOST_PER_KEY}%`);
       setTimeout(() => setNpcToast(null), 2600);
     }
-    setFound((s) => { const n = new Set(s); ids.forEach((i) => n.add(i)); return n; });
+    const nextFound = new Set(found);
+    ids.forEach((i) => nextFound.add(i));
+    const nextCompletion = maybeCompleteRun({
+      completion,
+      foundCount: nextFound.size,
+      total,
+      nowTs: Date.now(),
+      startedAt,
+      chatMs,
+      skipMs,
+    });
+    if (nextCompletion && !completion) {
+      setCompletion(nextCompletion);
+      setNpcToast(`🏁 16/16 线索集齐 · 通关耗时 ${fmt(nextCompletion.finalElapsedMs)}`);
+      setTimeout(() => setNpcToast(null), 3200);
+      sfx("done");
+    }
+    setFound(nextFound);
   };
 
   // 集满 3 条线索 → 邀请发小红书（传播钩子）。只触发一次（firedEvents 已持久化，刷新也不再弹）。
@@ -189,11 +231,9 @@ export default function Play() {
   }, [hod, day, keyFound, startedAt, firedEvents, active, pendingEvent, pendingShare, diagnose]);
 
   const restart = () => {
-    try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
-    setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
-    setPendingEvent(null); setPendingShare(false); setManualShare(false); setDiagnose(false);
-    setStartedAt(null); setNowTs(Date.now()); setSkipMs(0); setChatMs(0); setDayToast(null); setNpcToast(null);
-    setSessionId(newSessionId());
+    const snapshot = buildRestartSnapshot({ currentRunKey: STORE_KEY });
+    try { snapshot.removeKeys.forEach((key: string) => localStorage.removeItem(key)); } catch { /* ignore */ }
+    window.location.reload();
   };
 
   const selectNpc = (id: PersonaId) => {
@@ -241,8 +281,11 @@ export default function Play() {
 
       {/* 主体：左=办公室场地；右=常驻面板（聊天时是聊天区，不聊时是线索板） */}
       <div className="invest-body">
-        <div className="stage">
+        <div className={`stage ${complete ? "stage-complete" : ""}`}>
           <Office onSelect={selectNpc} found={found} boost={boost} gameMs={gameMs} />
+          {completion && (
+            <LeaderboardPanel completion={completion} foundCount={found.size} total={total} />
+          )}
         </div>
 
         <aside className="side">
@@ -293,7 +336,7 @@ export default function Play() {
 
       {/* 分享弹窗：集满 3 条自动弹一次 + 顶栏「📤 分享」随时手动打开（数字都取当下战绩） */}
       {(pendingShare || manualShare) && !active && !pendingEvent && (
-        <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={day} boost={boost} onClose={() => { setPendingShare(false); setManualShare(false); }} />
+        <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={completion?.finalDay ?? day} boost={boost} onClose={() => { setPendingShare(false); setManualShare(false); }} />
       )}
       {/* 事件：老板酒局（全屏大排档场景，保留浮层仪式感）。等玩家聊完当前同事再开场 */}
       {pendingEvent && !active && (

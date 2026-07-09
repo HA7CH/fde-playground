@@ -24,3 +24,21 @@ create table if not exists sessions (
   meta         jsonb
 );
 alter table sessions enable row level security;
+
+-- 通关排行榜。服务端 API 用 service role 读写；客户端只通过 /api/leaderboard 访问。
+create table if not exists leaderboard_scores (
+  user_id          uuid primary key,
+  github_login     text not null,
+  display_name     text not null,
+  avatar_url       text,
+  best_elapsed_ms  bigint not null check (best_elapsed_ms > 0),
+  final_game_ms    bigint not null default 0,
+  final_day        integer not null default 1,
+  completed_at     timestamptz not null,
+  updated_at       timestamptz not null default now()
+);
+
+create index if not exists leaderboard_scores_rank_idx
+  on leaderboard_scores (best_elapsed_ms asc, completed_at asc);
+
+alter table leaderboard_scores enable row level security;
