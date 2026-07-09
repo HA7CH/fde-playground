@@ -11,7 +11,7 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 export const storeConfigured = Boolean(url && key);
 
 let client: SupabaseClient | null = null;
-function getClient(): SupabaseClient | null {
+export function getServiceClient(): SupabaseClient | null {
   if (!storeConfigured) return null;
   if (!client) client = createClient(url, key, { auth: { persistSession: false } });
   return client;
@@ -29,7 +29,7 @@ export interface CapturedMessage {
  * 期望表：messages(session_id text, npc_id text, role text, content text, created_at timestamptz default now())
  */
 export async function captureMessage(m: CapturedMessage): Promise<void> {
-  const c = getClient();
+  const c = getServiceClient();
   if (!c) {
     console.log(`[capture:noop] ${m.sessionId} <${m.npcId}> ${m.role}: ${m.content.slice(0, 80)}`);
     return;
