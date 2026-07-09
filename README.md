@@ -4,6 +4,16 @@
 
 这是 **Phase 1（摸需求）前门**。（完整玩法/评分/架构等内部设计文档不随本仓库公开。）
 
+## Phase 2 原型：对单/做账防错插件
+
+新增一个轻量旁路插件切片：`/plugin`。
+
+- 对单防错：粘贴 SI/补料、HBL、MBL，输出红黄灯差异报告。
+- 做账防漏：粘贴签费、USD/RMB DN、供应商账单、操作备注，输出疑似漏收、漏录、未闭环费用。
+- 责任边界：不替换原系统、不自动提交船司、不自动入账、不自动放单。
+
+插件原型静态文件位于 `public/freight-risk-plugin/`，产品思路见 `public/freight-risk-plugin/PLAN.md`。
+
 ## 技术栈
 - **Next.js 15（App Router）+ React 19 + TypeScript**
 - **DeepSeek**（OpenAI 兼容，流式）驱动 4 个 NPC 人设
@@ -42,6 +52,12 @@ src/
 npm install
 cp .env.example .env.local   # 填 DEEPSEEK_API_KEY（不填也能跑，走 mock）
 npm run dev                  # http://localhost:3000
+```
+
+插件页面：
+
+```bash
+open http://localhost:3000/plugin
 ```
 
 ## 环境变量
