@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import Office from "@/components/Office";
 import Dialogue from "@/components/Dialogue";
 import DiagnoseModal from "@/components/DiagnoseModal";
+import ExportModal from "@/components/ExportModal";
 import ShareModal from "@/components/ShareModal";
 import SoundToggle from "@/components/SoundToggle";
 import GitHubLink from "@/components/GitHubLink";
 import { ALL_CLUES, KEY_CLUE_IDS, NPCS, OFF_DUTY } from "@/lib/personas";
 import type { ChatMessage, PersonaId } from "@/lib/types";
 import { sfx } from "@/lib/sfx";
+import type { SessionTimelineEntry } from "@/lib/sessionExport";
 
 const STORE_KEY = "fde-play-v1"; // localStorage 键（改结构就 bump 版本）
 
@@ -43,6 +45,41 @@ function fmtClock(hod: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+function initialTimeline(histories: Record<string, ChatMessage[]> = {}): SessionTimelineEntry[] {
+  const now = Date.now();
+  const entries: SessionTimelineEntry[] = [
+    { id: `t_${now}_start`, type: "session_start", realTs: now, gameDay: 1, gameTime: "09:00" },
+  ];
+  Object.entries(histories).forEach(([npcId, msgs], groupIndex) => {
+    if (!Array.isArray(msgs) || !msgs.length) return;
+    const npcName = NPCS[npcId]?.name ?? npcId;
+    entries.push({
+      id: `t_${now}_legacy_${groupIndex}`,
+      type: "npc_open",
+      realTs: now + groupIndex,
+      gameDay: 1,
+      gameTime: "09:00",
+      npcId,
+      npcName,
+      title: "旧存档对话导入（原始时间不可用）",
+    });
+    msgs.forEach((m, i) => {
+      entries.push({
+        id: `t_${now}_legacy_${groupIndex}_${i}`,
+        type: "message",
+        realTs: now + groupIndex + i + 1,
+        gameDay: 1,
+        gameTime: "09:00",
+        npcId,
+        npcName,
+        role: m.role,
+        content: m.content,
+      });
+    });
+  });
+  return entries;
+}
+
 export default function Play() {
   const [sessionId, setSessionId] = useState("");
   const [active, setActive] = useState<PersonaId | null>(null);
@@ -54,6 +91,8 @@ export default function Play() {
   const [pendingEvent, setPendingEvent] = useState<PersonaId | null>(null);
   const [pendingShare, setPendingShare] = useState(false);
   const [manualShare, setManualShare] = useState(false); // 顶栏「分享」按钮随时打开
+  const [exportOpen, setExportOpen] = useState(false);
+  const [timeline, setTimeline] = useState<SessionTimelineEntry[]>([]);
   const [hydrated, setHydrated] = useState(false); // 从 localStorage 恢复完成前，别回写覆盖
   const [startedAt, setStartedAt] = useState<number | null>(null); // 首次点开同事时开始计时（持久化，刷新不重置）
   const [nowTs, setNowTs] = useState(0); // 当前时间戳，每秒 tick 刷新计时显示
@@ -68,15 +107,23 @@ export default function Play() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
       const s = raw ? JSON.parse(raw) : null;
-      setSessionId(s?.sessionId || newSessionId());
-      if (s?.histories) setHistories(s.histories);
+      const sid = s?.sessionId || newSessionId();
+      const savedHistories = s?.histories && typeof s.histories === "object" ? s.histories : {};
+      setSessionId(sid);
+      if (s?.histories) setHistories(savedHistories);
       if (Array.isArray(s?.found)) setFound(new Set(s.found));
       if (Array.isArray(s?.firedEvents)) setFiredEvents(new Set(s.firedEvents));
+      if (Array.isArray(s?.timeline)) {
+        setTimeline(s.timeline);
+      } else {
+        setTimeline(initialTimeline(savedHistories));
+      }
       if (typeof s?.startedAt === "number") setStartedAt(s.startedAt);
       if (typeof s?.skipMs === "number") setSkipMs(s.skipMs);
       if (typeof s?.chatMs === "number") setChatMs(s.chatMs);
     } catch {
       setSessionId(newSessionId());
+      setTimeline(initialTimeline());
     }
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches) setNoteOpen(false);
     setNowTs(Date.now());
@@ -88,10 +135,10 @@ export default function Play() {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        sessionId, histories, found: [...found], firedEvents: [...firedEvents], startedAt, skipMs, chatMs,
+        sessionId, histories, found: [...found], firedEvents: [...firedEvents], timeline, startedAt, skipMs, chatMs,
       }));
     } catch { /* 隐私模式/超额，忽略 */ }
-  }, [hydrated, sessionId, histories, found, firedEvents, startedAt, skipMs, chatMs]);
+  }, [hydrated, sessionId, histories, found, firedEvents, timeline, startedAt, skipMs, chatMs]);
 
   // 计时：首次点开同事后每秒刷新显示；聊天中把这一秒记进 chatMs（游戏钟冻结，聊天不吃钟）
   const activeRef = useRef<PersonaId | null>(null);
@@ -117,6 +164,34 @@ export default function Play() {
   const boost = keyFound * BOOST_PER_KEY;
   const total = ALL_CLUES.length;
   const ready = talkedCount >= 2 || found.size >= 3;
+  const foundClues = ALL_CLUES
+    .filter((c) => found.has(c.id))
+    .map((c) => ({ id: c.id, label: c.label, ownerName: c.ownerName, key: c.key }));
+  const exportState = {
+    sessionId,
+    generatedAt: new Date(),
+    elapsedLabel: fmt(shownElapsedMs),
+    day,
+    clock: fmtClock(hod),
+    foundCount: found.size,
+    totalClues: total,
+    boost,
+    foundClues,
+    timeline,
+  };
+
+  const appendTimeline = (entry: Omit<SessionTimelineEntry, "id" | "realTs" | "gameDay" | "gameTime">) => {
+    setTimeline((items) => [
+      ...items,
+      {
+        id: `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        realTs: Date.now(),
+        gameDay: day,
+        gameTime: fmtClock(hod),
+        ...entry,
+      },
+    ]);
+  };
 
   // 收工换日：21:00 自动跳到次日早 9 点，弹一条横幅（null 起始 → 刷新恢复存档时不误弹）
   const dayRef = useRef<number | null>(null);
@@ -126,6 +201,7 @@ export default function Play() {
     dayRef.current = day;
     if (prev != null && day > prev) {
       setDayToast(day);
+      appendTimeline({ type: "day_change", title: `第 ${day} 天早上，接着摸需求` });
       sfx("done");
       const id = setTimeout(() => setDayToast(null), 4200);
       return () => clearTimeout(id);
@@ -145,10 +221,20 @@ export default function Play() {
     else if (h === 18) sfx("receive");
   }, [hod, startedAt]);
 
-  const addClues = (ids: string[]) => {
+  const addClues = (ids: string[], npcId?: PersonaId) => {
     const fresh = ids.filter((i) => !found.has(i));
     const freshKeys = fresh.filter((i) => KEY_CLUE_IDS.includes(i)).length;
     if (fresh.length) sfx(freshKeys > 0 ? "clueKey" : "clue");
+    if (fresh.length) {
+      const labels = ALL_CLUES.filter((c) => fresh.includes(c.id)).map((c) => c.label);
+      appendTimeline({
+        type: "clue",
+        npcId,
+        npcName: npcId ? NPCS[npcId]?.name : undefined,
+        clueIds: fresh,
+        clueLabels: labels,
+      });
+    }
     // 彩蛋级提效反馈：挖到★时飘一条小提示，订单板悄悄变好——不进顶栏、不抢主流程
     if (freshKeys > 0) {
       setNpcToast(`⚡ 你指对了一处堵点 · 团队提效 +${freshKeys * BOOST_PER_KEY}%`);
@@ -169,7 +255,12 @@ export default function Play() {
   useEffect(() => {
     if (found.size >= 5 && !firedEvents.has("drinks")) {
       setFiredEvents((s) => new Set(s).add("drinks"));
-      setPendingEvent("boss_offrecord");
+      const eventId = "boss_offrecord";
+      setPendingEvent(eventId);
+      appendTimeline({ type: "npc_open", npcId: eventId, npcName: NPCS[eventId].name, title: "老板酒局开场" });
+      if (!(histories[eventId] ?? []).length) {
+        appendTimeline({ type: "message", npcId: eventId, npcName: NPCS[eventId].name, role: "assistant", content: NPCS[eventId].opening });
+      }
     }
   }, [found, firedEvents]);
 
@@ -184,6 +275,8 @@ export default function Play() {
     if (active || pendingEvent || pendingShare || diagnose) return; // 不打断进行中的对话/弹窗
     setFiredEvents((s) => new Set(s).add(pushKey));
     setHistories((h) => ({ ...h, boss: [...(h.boss ?? []), { role: "assistant" as const, content: BOSS_PUSH_MSG }] }));
+    appendTimeline({ type: "npc_open", npcId: "boss", npcName: NPCS.boss.name, title: "老板主动来找你" });
+    appendTimeline({ type: "message", npcId: "boss", npcName: NPCS.boss.name, role: "assistant", content: BOSS_PUSH_MSG });
     setActive("boss");
     sfx("event");
   }, [hod, day, keyFound, startedAt, firedEvents, active, pendingEvent, pendingShare, diagnose]);
@@ -191,13 +284,16 @@ export default function Play() {
   const restart = () => {
     try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
     setActive(null); setHistories({}); setFound(new Set()); setFiredEvents(new Set());
-    setPendingEvent(null); setPendingShare(false); setManualShare(false); setDiagnose(false);
+    setPendingEvent(null); setPendingShare(false); setManualShare(false); setExportOpen(false); setDiagnose(false);
     setStartedAt(null); setNowTs(Date.now()); setSkipMs(0); setChatMs(0); setDayToast(null); setNpcToast(null);
-    setSessionId(newSessionId());
+    const sid = newSessionId();
+    setSessionId(sid);
+    setTimeline(initialTimeline());
   };
 
   const selectNpc = (id: PersonaId) => {
     const t = Date.now();
+    const firstVisit = !(histories[id] ?? []).length;
     setStartedAt((v) => v ?? t);
     setNowTs(t);
     // 下班守卫：人走了就聊不了（明早 9 点回来，或 ⏩ 快进）
@@ -209,6 +305,10 @@ export default function Play() {
       return;
     }
     sfx("open");
+    appendTimeline({ type: "npc_open", npcId: id, npcName: NPCS[id].name, title: "开始对话" });
+    if (firstVisit) {
+      appendTimeline({ type: "message", npcId: id, npcName: NPCS[id].name, role: "assistant", content: NPCS[id].opening });
+    }
     setActive(id);
   };
 
@@ -229,6 +329,7 @@ export default function Play() {
             {hod >= 19 ? "🌙" : hod >= 12 && hod < 13 ? "🍚" : "🕘"} 第{day}天 <b>{fmtClock(hod)}</b>
           </span>
           <button className="restart-btn" onClick={() => { sfx("ui"); setManualShare(true); }} title="把当前战绩分享到小红书">📤 分享</button>
+          <button className="restart-btn" onClick={() => { sfx("ui"); setExportOpen(true); }} title="导出本局档案和完整对话">🗂 导出</button>
           <SoundToggle className="restart-btn" />
           <button className="restart-btn" onClick={restart} title="清空进度重新开始">↻ 重开</button>
           <button className="btn btn-accent diag-btn" disabled={!ready}
@@ -255,7 +356,8 @@ export default function Play() {
               seed={histories[active] ?? []}
               found={found}
               onPersist={(msgs) => setHistories((h) => ({ ...h, [active]: msgs }))}
-              onClues={addClues}
+              onClues={(ids) => addClues(ids, active)}
+              onRecord={(event) => appendTimeline({ ...event, npcId: active, npcName: NPCS[active].name })}
               onClose={() => setActive(null)}
             />
           ) : (
@@ -295,6 +397,9 @@ export default function Play() {
       {(pendingShare || manualShare) && !active && !pendingEvent && (
         <ShareModal foundCount={found.size} timeLabel={fmt(shownElapsedMs)} day={day} boost={boost} onClose={() => { setPendingShare(false); setManualShare(false); }} />
       )}
+      {exportOpen && (
+        <ExportModal state={exportState} onClose={() => setExportOpen(false)} />
+      )}
       {/* 事件：老板酒局（全屏大排档场景，保留浮层仪式感）。等玩家聊完当前同事再开场 */}
       {pendingEvent && !active && (
         <Dialogue
@@ -304,6 +409,7 @@ export default function Play() {
           found={found}
           onPersist={(msgs) => setHistories((h) => ({ ...h, [pendingEvent]: msgs }))}
           onClues={() => { /* 酒局不进笔记本：信号在对话本身，已入库供回看 */ }}
+          onRecord={(event) => appendTimeline({ ...event, npcId: pendingEvent, npcName: NPCS[pendingEvent].name })}
           onClose={() => setPendingEvent(null)}
           event={{
             backdropClass: "event-drinks",
@@ -312,7 +418,13 @@ export default function Play() {
         />
       )}
       {diagnose && (
-        <DiagnoseModal sessionId={sessionId} foundClues={[...found]} onClose={() => setDiagnose(false)} />
+        <DiagnoseModal
+          sessionId={sessionId}
+          foundClues={[...found]}
+          onSubmitted={(diagnosis) => appendTimeline({ type: "diagnosis_submitted", content: diagnosis })}
+          onFeedback={(feedback) => appendTimeline({ type: "diagnosis_feedback", content: feedback })}
+          onClose={() => setDiagnose(false)}
+        />
       )}
     </div>
   );
