@@ -16,6 +16,8 @@ export interface Clue {
   label: string;
   /** 是否核心痛点线索（影响诊断评分权重） */
   key?: boolean;
+  /** 给线索裁判（lib/judge.ts）的判定标准：NPC 在回答里亲口说出什么才算命中 */
+  criteria?: string;
 }
 
 export interface Persona {
