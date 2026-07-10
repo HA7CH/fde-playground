@@ -1,7 +1,8 @@
 import { getPersona } from "@/lib/personas";
 import { streamChat } from "@/lib/llm";
-import { captureMessage } from "@/lib/store";
+import { captureMessage, captureJudgeSample } from "@/lib/store";
 import { inferClueIds } from "@/lib/clueDetection";
+import { judgeClues, judgeConfigured } from "@/lib/judge";
 import type { ChatMessage, ChatRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -44,7 +45,21 @@ export async function POST(req: Request) {
           controller.enqueue(encoder.encode(delta));
         }
         // 兜底：NPC 明明说到某条线索却漏打隐藏标记时，服务端在流末尾补上（前端仍按原逻辑清理+入笔记本）。
-        const inferred = inferClueIds(persona, lastUser?.content ?? "", full);
+        // AI native mode（灰度，见 lib/judge.ts）：兜底判定交给线索裁判，关键词规则退居降级路径；
+        // 裁判不可用/超时/输出不合法 → 原样跑 inferClueIds，逐字节等于经典模式。
+        const ruleInferred = inferClueIds(persona, lastUser?.content ?? "", full);
+        let inferred = ruleInferred;
+        if (judgeConfigured) {
+          const judged = await judgeClues(persona, full);
+          if (judged !== null) {
+            inferred = judged;
+            // 双轨复核：裁判与规则不一致的样本落库，供校准（两边都为空的不记）。
+            const same = judged.length === ruleInferred.length && judged.every((id) => ruleInferred.includes(id));
+            if (!same) {
+              captureJudgeSample({ sessionId, npcId: persona.id, judgeIds: judged, ruleIds: ruleInferred });
+            }
+          }
+        }
         if (inferred.length) {
           const fallbackTags = inferred.map((id) => `[[CLUE:${id}]]`).join(" ");
           full += fallbackTags;

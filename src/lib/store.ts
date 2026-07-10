@@ -24,6 +24,39 @@ export interface CapturedMessage {
   content: string;
 }
 
+export interface JudgeSample {
+  sessionId: string;
+  npcId: PersonaId;
+  /** 线索裁判（AI）判的 id */
+  judgeIds: string[];
+  /** 关键词规则（经典）判的 id */
+  ruleIds: string[];
+}
+
+/**
+ * 双轨分歧样本（issue #16：先双轨跑，分歧样本落库复核）。
+ * 只在裁判与规则判定不一致时调用；失败/未配置都不抛。
+ * 期望表：judge_samples(session_id text, npc_id text, judge_ids jsonb, rule_ids jsonb, created_at timestamptz default now())
+ */
+export async function captureJudgeSample(s: JudgeSample): Promise<void> {
+  const c = getClient();
+  if (!c) {
+    console.log(`[judge:diverge] ${s.sessionId} <${s.npcId}> judge=[${s.judgeIds}] rules=[${s.ruleIds}]`);
+    return;
+  }
+  try {
+    const { error } = await c.from("judge_samples").insert({
+      session_id: s.sessionId,
+      npc_id: s.npcId,
+      judge_ids: s.judgeIds,
+      rule_ids: s.ruleIds,
+    });
+    if (error) console.error("[judge:diverge] insert error", error.message);
+  } catch (e) {
+    console.error("[judge:diverge] threw", e);
+  }
+}
+
 /**
  * 落一行对话。失败/未配置都不抛——采集不可靠不能拖垮对话。
  * 期望表：messages(session_id text, npc_id text, role text, content text, created_at timestamptz default now())

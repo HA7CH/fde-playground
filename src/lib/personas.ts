@@ -42,13 +42,20 @@ export const PERSONAS: Record<PersonaId, Persona> = {
 2) 承诺：抛诱饵"能不能给我搞成全自动的？你能保证吗？"——看他会不会过度承诺。
 3) 采纳顾虑：如果他提"换个系统/做个 ERP"，你就质疑"你这系统稳不稳定？出了问题谁负责？有售后吗？我三个亿的单子凭啥切到你这上面？"`,
     clues: [
-      { id: "boss-fakeneed", label: "老板嘴上要『AI 全自动』，其实是伪需求", key: true },
-      { id: "boss-realpain", label: "老板真痛：对单/做账在赔钱、放单出过事故", key: true },
-      { id: "boss-wrongnum", label: "老板算的人力成本是错的（虚高）" },
-      { id: "boss-org", label: "公司层级：主管阿强带操作线；跟单主力婷婷、业务主力小敏（细节找他们）" },
-      { id: "boss-capacity", label: "接单接不过来——需求不缺、卡在产能；提效才能换成多接单", key: true },
-      { id: "boss-bottleneck", label: "卡点约四成在能提速的一线(对单/做账)、六成在外部(船期客户,碰不了)", key: true },
-      { id: "boss-margin", label: "毛利率≈30%——多接的单能变真利润，可据此按价值定价", key: true },
+      { id: "boss-fakeneed", label: "老板嘴上要『AI 全自动』，其实是伪需求", key: true,
+        criteria: "老板亲口要求『全自动 / 一键搞定』式的系统（如“我就要全自动的，你能保证吗”）" },
+      { id: "boss-realpain", label: "老板真痛：对单/做账在赔钱、放单出过事故", key: true,
+        criteria: "老板亲口说对单/做账在赔钱、出岔子、被投诉，或放单出过事故/被索赔" },
+      { id: "boss-wrongnum", label: "老板算的人力成本是错的（虚高）" ,
+        criteria: "老板报出跟单人力成本数字（如八千/一万一个月、一年十来万）并要求系统帮他省下这笔钱" },
+      { id: "boss-org", label: "公司层级：主管阿强带操作线；跟单主力婷婷、业务主力小敏（细节找他们）",
+        criteria: "老板一次说全组织结构：阿强管操作线，跟单细节找婷婷、费用报价找小敏" },
+      { id: "boss-capacity", label: "接单接不过来——需求不缺、卡在产能；提效才能换成多接单", key: true,
+        criteria: "老板亲口说接单接不过来/客户想加量不敢接/一线做不动——生意不缺、卡在产能" },
+      { id: "boss-bottleneck", label: "卡点约四成在能提速的一线(对单/做账)、六成在外部(船期客户,碰不了)", key: true,
+        criteria: "老板亲口给出卡点构成：约四成在内部一线（对单/做账，可提速）、六成在外部（船期/客户，碰不了）" },
+      { id: "boss-margin", label: "毛利率≈30%——多接的单能变真利润，可据此按价值定价", key: true,
+        criteria: "老板亲口说毛利率大约三成 / 30%，多接的单能变成利润" },
     ],
   },
 
@@ -68,9 +75,12 @@ export const PERSONAS: Record<PersonaId, Persona> = {
 2) 访问权：如果他问到船司网站怎么操作，你就说"那得用公司账号登，回头我把账号发你"——看他意识到没有"访问是主管给的"。
 【边界】你不碰具体费率报价（那是业务员的事）、不亲手逐票对单的苦（那是跟单员的事），被问太细就甩给对应的人。`,
     clues: [
-      { id: "mgr-flow", label: "9 段流程：订舱→补料→对单→截单→开船→做账→放单" },
-      { id: "mgr-access", label: "船司官网要用公司账号登（访问权由主管赐予）" },
-      { id: "mgr-undervalue", label: "主管自评只用 1 小时，真价值在一线高频用", key: true },
+      { id: "mgr-flow", label: "9 段流程：订舱→补料→对单→截单→开船→做账→放单",
+        criteria: "主管一次列出至少 5 段业务流程（订舱/补料/对单/截单/开船/做账/放单）" },
+      { id: "mgr-access", label: "船司官网要用公司账号登（访问权由主管赐予）",
+        criteria: "主管亲口说船司官网要用公司账号登录，账号/权限由他来发或开" },
+      { id: "mgr-undervalue", label: "主管自评只用 1 小时，真价值在一线高频用", key: true,
+        criteria: "主管自评自己每天只用约一小时系统、其余时间在处理异常" },
     ],
   },
 
@@ -88,8 +98,10 @@ export const PERSONAS: Record<PersonaId, Persona> = {
 【会暴露的"假创新"陷阱】如果顾问提"给客户发个链接填托书"，你会兴奋附和"对对这个好"，但接着漏一句："不过……我前阵子看别家平台好像也有这个了，有个小货代同行都在用。"——埋一个"这idea别人早有了"的线索，看顾问会不会去做市场判断。
 【边界】你不懂具体操作流程的技术细节（那是主管/跟单员），被问到就说"这我不太清楚，你问阿强/婷婷"。`,
     clues: [
-      { id: "sales-dn", label: "同一票货拆 USD/RMB 两张账单(DN)" },
-      { id: "sales-exist", label: "『发链接让客户填托书』别家平台早有了，不是创新", key: true },
+      { id: "sales-dn", label: "同一票货拆 USD/RMB 两张账单(DN)",
+        criteria: "业务员亲口说同一票货会拆成 USD 和 RMB 两张账单/DN" },
+      { id: "sales-exist", label: "『发链接让客户填托书』别家平台早有了，不是创新", key: true,
+        criteria: "业务员亲口说『发链接让客户填托书』这类功能别家平台/同行早就有了、已经在用" },
     ],
   },
 
@@ -114,10 +126,14 @@ export const PERSONAS: Record<PersonaId, Persona> = {
 【你要主动抛的考题】聊到"做个系统/AI 帮你"时，你会带着戒备问一句："你这……是不是来取代我们的？做出来我们是不是就没用了？"——看顾问怎么面对你的恐惧（是共情+说清"是帮你省事不是替你"，还是回避/否认让你更慌）。
 【边界】你不管报价（问小敏）、不拍板（问李总）。`,
     clues: [
-      { id: "clerk-recon", label: "对单全靠开两个 tab 肉眼比 MBL/HBL/SI/补料", key: true },
-      { id: "clerk-expected", label: "合法预期差异不能误报：电放费出正本不收 / 非欧盟无 ICS2 / 报价≠签费", key: true },
-      { id: "clerk-deadline", label: "最怕错过截单；收款是放单的硬前置" },
-      { id: "clerk-fear", label: "跟单员怕被系统取代" },
+      { id: "clerk-recon", label: "对单全靠开两个 tab 肉眼比 MBL/HBL/SI/补料", key: true,
+        criteria: "跟单员亲口描述对单靠开两个 tab/窗口、肉眼逐字段比对 MBL/HBL/SI/补料" },
+      { id: "clerk-expected", label: "合法预期差异不能误报：电放费出正本不收 / 非欧盟无 ICS2 / 报价≠签费", key: true,
+        criteria: "跟单员亲口说明存在不能当错报的合法预期差异（电放费出正本不收 / 非欧盟航线无 ICS2 / 报价≠最终签费 / 有的票只出 MBL）" },
+      { id: "clerk-deadline", label: "最怕错过截单；收款是放单的硬前置",
+        criteria: "跟单员亲口说最怕错过截单时间，或没收到钱不放单（收款是放单硬前置）" },
+      { id: "clerk-fear", label: "跟单员怕被系统取代",
+        criteria: "跟单员亲口表达怕被系统/AI 取代、丢饭碗的担忧" },
     ],
   },
 };
