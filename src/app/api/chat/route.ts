@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   // 采集：最新一条用户消息（服务端落库，见 docs/v1-spec.md §3）
   const lastUser = [...history].reverse().find((m) => m.role === "user");
   if (lastUser) {
-    captureMessage({ sessionId, npcId: persona.id, role: "user", content: lastUser.content });
+    await captureMessage({ sessionId, npcId: persona.id, role: "user", content: lastUser.content });
   }
 
   const encoder = new TextEncoder();
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
       } finally {
         controller.close();
         if (full.trim()) {
-          captureMessage({ sessionId, npcId: persona.id, role: "assistant", content: full });
+          await captureMessage({ sessionId, npcId: persona.id, role: "assistant", content: full });
         }
       }
     },
