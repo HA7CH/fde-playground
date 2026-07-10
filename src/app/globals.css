@@ -236,7 +236,7 @@ img { image-rendering: pixelated; }
 /* 右侧常驻面板：不聊天=线索板，聊天=聊天区（不再弹窗打断） */
 .side { min-width: 0; min-height: 0; display: flex; }
 .side > * { flex: 1; min-width: 0; }
-.chat-embed { height: auto; max-width: none; min-height: min(64dvh, 540px); }
+.chat-embed { align-self: flex-start; width: 100%; height: 64vh; height: 64dvh; max-height: 480px; min-height: 0; max-width: none; }
 .note { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .note-head { width: 100%; text-align: left; border: 0; border-bottom: 3px solid var(--ink); cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .note-count { margin-left: auto; color: var(--ink2); font-size: 12px; }
@@ -265,7 +265,7 @@ img { image-rendering: pixelated; }
 /* 深色首屏上用浅字 + 描边，保证可读 */
 .title-screen .gh-link { color: rgba(246,239,226,.9); text-shadow: 0 1px 2px rgba(0,0,0,.55); }
 .title-screen .gh-link:hover { color: #fff; }
-@media (max-width: 860px) { .invest-body { grid-template-columns: 1fr; } .chat-embed { min-height: 60dvh; } }
+@media (max-width: 860px) { .invest-body { grid-template-columns: 1fr; } .chat-embed { height: 60vh; height: 60dvh; } }
 /* ===== 移动端适配 ===== */
 @media (max-width: 620px) {
   .invest { justify-content: flex-start; padding: 8px; gap: 8px; }
@@ -278,7 +278,7 @@ img { image-rendering: pixelated; }
   /* 线索板默认折叠成一条，点标题展开；聊天区占满 */
   .note { max-height: 46dvh; }
   .note.folded { max-height: none; }
-  .chat-embed { min-height: 62dvh; }
+  .chat-embed { height: 62vh; height: 62dvh; }
   .invest-cta { gap: 8px; }
   .cta-btn { font-size: 15px; padding: 11px 22px; }
   .cta-hint { display: none; }
