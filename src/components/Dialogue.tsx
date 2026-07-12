@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, Persona } from "@/lib/types";
+import { PERSONAS, PERSONA_ORDER } from "@/lib/personas";
 import FontToggle from "./FontToggle";
 import { sfx } from "@/lib/sfx";
 import { shake } from "@/lib/fx";
@@ -45,6 +46,19 @@ export default function Dialogue({
   // 这个人身上的线索是否已全部问出（只有带线索的关键同事才会触发，干扰角色/酒局 clues 为空 → 恒 false）
   const myClues = persona.clues ?? [];
   const exhausted = myClues.length > 0 && myClues.every((c) => found.has(c.id));
+  const nextHint = useMemo(() => {
+    const remaining = PERSONA_ORDER
+      .filter((id) => {
+        const clues = PERSONAS[id]?.clues ?? [];
+        return clues.length > 0 && clues.some((c) => !found.has(c.id));
+      })
+      .map((id) => PERSONAS[id].name.split("（")[0])
+      .slice(0, 3);
+
+    return remaining.length
+      ? `再去跟${remaining.join("、")}聊聊`
+      : "现在线索都收集全了！";
+  }, [found]);
   const close = () => { sfx("close"); onClose(); };
 
   useEffect(() => {
@@ -121,7 +135,7 @@ export default function Dialogue({
 
         {exhausted && (
           <div className="dlg-done">
-            ✅ 这位{persona.title}该问的都问到了（{myClues.length} 条线索已入袋）· 回办公室换个人聊聊
+            ✅ 这位{persona.title}该问的都问到了（{myClues.length} 条线索已入袋）· {nextHint}
           </div>
         )}
 
