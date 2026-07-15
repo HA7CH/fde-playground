@@ -68,7 +68,7 @@ function mockReply(id: Persona["id"], userText: string): string {
     if (ask(["多少钱", "价格", "报价", "收费"])) return `${p}你先说能帮我省多少。一个跟单一年怎么也十来万，你得省下这个。[[CLUE:boss-wrongnum]]`;
     if (ask(["全自动", "保证", "自动"])) return `${p}对！我就要全自动的，你能保证吗？[[CLUE:boss-fakeneed]]`;
     if (ask(["接单", "接更多", "多接", "接得过来", "产能", "瓶颈", "卡在", "扩"])) return `${p}实话说接单接不过来，好几个客户想加量我不敢接，一线忙不过来。卡点大概四成在内部看屏幕这些(对单做账)、六成在外部船期客户。[[CLUE:boss-capacity]] [[CLUE:boss-bottleneck]]`;
-    if (ask(["毛利", "利润率", "赚"])) return `${p}我们这行毛利大概三成。多接的单大半能落到利润。[[CLUE:boss-margin]]`;
+    if (ask(["毛利", "利润率", "赚"])) return `${p}这行毛利薄得很，也就 5 到 8 个点。所以我最怕出岔子——出一单索赔几十单白干。[[CLUE:boss-margin]]`;
     return `${p}我只看结果：少赔钱、少投诉。对单做账那块老出岔子。[[CLUE:boss-realpain]]`;
   }
   if (id === "boss_offrecord") {
@@ -87,6 +87,8 @@ function mockReply(id: Persona["id"], userText: string): string {
   }
   if (ask(["取代", "替代", "没用", "失业"])) return `${p}你这……是不是来取代我们的？[[CLUE:clerk-fear]]`;
   if (ask(["对单", "差异", "比对", "核对", "怎么干", "最烦"])) return `${p}对单全靠开两个 tab 肉眼比；预期内的差异（电放费、ICS2、报价≠签费）别全标红。[[CLUE:clerk-recon]] [[CLUE:clerk-expected]]`;
+  // 细节漩涡：问具体操作/国别要求 → 倾泻真细节但不出任何线索（陷阱：细节没有尽头）
+  if (ask(["ICS2", "埃及", "沙特", "国家", "要求", "申报", "认证", "具体操作", "细节", "什么规定"])) return `${p}哎这你可问着了——欧盟 ICS2 晚报船司直接拒载；埃及要 ACID 号，没有货到港只能弃；沙特还得 SABER 认证……这还只是冰山一角，美线 ISF 晚报罚五千美金呢，你要听我能讲一下午。`;
   return `${p}嗯，你说。（在忙，回得短）`;
 }
 
