@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ChatMessage, Persona } from "@/lib/types";
+import type { ChatMessage, Persona, Role } from "@/lib/types";
 import FontToggle from "./FontToggle";
 import { sfx } from "@/lib/sfx";
 import { shake } from "@/lib/fx";
@@ -17,6 +17,7 @@ export default function Dialogue({
   found,
   onPersist,
   onClues,
+  onRecord,
   onClose,
   event,
   variant = "modal",
@@ -28,6 +29,7 @@ export default function Dialogue({
   found: Set<string>;
   onPersist: (msgs: ChatMessage[]) => void;
   onClues: (ids: string[]) => void;
+  onRecord?: (event: { type: "message"; role: Role; content: string }) => void;
   onClose: () => void;
   /** 事件场景：换浮层背景 + 顶部旁白（不传则是普通工位对话） */
   event?: { backdropClass: string; caption: string };
@@ -67,6 +69,7 @@ export default function Dialogue({
     setInput("");
     sfx("send");
     const outgoing: ChatMessage[] = [...messages, { role: "user", content: text }];
+    onRecord?.({ type: "message", role: "user", content: text });
     setMessages([...outgoing, { role: "assistant", content: "" }]);
     setBusy(true);
     try {
@@ -85,14 +88,24 @@ export default function Dialogue({
         acc += dec.decode(value, { stream: true });
         setMessages([...outgoing, { role: "assistant", content: clean(acc) }]);
       }
-      if (clean(acc).trim()) sfx("receive");
+      const reply = clean(acc).trim();
+      if (reply) {
+        sfx("receive");
+        onRecord?.({ type: "message", role: "assistant", content: reply });
+      }
       const ids = extractClues(acc);
       if (ids.length) onClues(ids);
       // 拿到「新的」★ 核心痛点线索时才抖（排除已入袋的——服务端兜底会对重复内容再补标记，不能重复抖；与 play 页的声音去重逻辑一致）
       if (ids.some((id) => !found.has(id) && myClues.some((c) => c.id === id && c.key))) shake(windowRef.current, 6, 320);
-      if (!clean(acc).trim()) setMessages([...outgoing, { role: "assistant", content: "（……没说话，再问一句试试）" }]);
+      if (!reply) {
+        const fallback = "（……没说话，再问一句试试）";
+        onRecord?.({ type: "message", role: "assistant", content: fallback });
+        setMessages([...outgoing, { role: "assistant", content: fallback }]);
+      }
     } catch {
-      setMessages([...outgoing, { role: "assistant", content: "（网络打了个嗝，再说一句试试）" }]);
+      const fallback = "（网络打了个嗝，再说一句试试）";
+      onRecord?.({ type: "message", role: "assistant", content: fallback });
+      setMessages([...outgoing, { role: "assistant", content: fallback }]);
     } finally {
       setBusy(false);
     }

@@ -2,11 +2,13 @@
   "name": "fde-playground",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "HATCH FDE 货代实战擂台 — 摸需求像素办公室前门",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --test --experimental-strip-types tests/sessionExport.test.mts",
     "lint": "next lint"
   },
   "dependencies": {

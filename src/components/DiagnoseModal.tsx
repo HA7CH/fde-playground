@@ -8,10 +8,14 @@ import { shake } from "@/lib/fx";
 export default function DiagnoseModal({
   sessionId,
   foundClues,
+  onSubmitted,
+  onFeedback,
   onClose,
 }: {
   sessionId: string;
   foundClues: string[];
+  onSubmitted?: (diagnosis: string) => void;
+  onFeedback?: (feedback: string) => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState("");
@@ -25,6 +29,7 @@ export default function DiagnoseModal({
     if (!diagnosis || busy) return;
     setBusy(true);
     setFeedback("");
+    onSubmitted?.(diagnosis);
     try {
       const res = await fetch("/api/diagnose", {
         method: "POST",
@@ -41,7 +46,11 @@ export default function DiagnoseModal({
         acc += dec.decode(value, { stream: true });
         setFeedback(acc);
       }
-      if (acc.trim()) { sfx("done"); shake(windowRef.current, 6, 340); } // 主管点评出炉：完成音 + 抖一下
+      if (acc.trim()) {
+        onFeedback?.(acc.trim());
+        sfx("done");
+        shake(windowRef.current, 6, 340);
+      } // 主管点评出炉：完成音 + 抖一下
     } catch {
       setFeedback("（复盘时网络打了个嗝，再试一次）");
     } finally {

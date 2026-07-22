@@ -213,6 +213,32 @@ img { image-rendering: pixelated; }
 .share-later { width: 100%; font-size: 12px; color: var(--ink2); background: transparent; border: 2px solid var(--line); }
 .share-later:hover { color: var(--ink); border-color: var(--ink); }
 
+/* 本局档案导出 */
+.export-modal { width: 100%; max-width: 620px; max-height: min(86dvh, 720px); overflow: hidden; padding: 0; display: flex; flex-direction: column; }
+.export-head { background: linear-gradient(#4f7fb8, #2b5f93); }
+.export-body { min-height: 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--paper); }
+.export-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.export-tabs button { font-size: 12px; padding: 8px 10px; background: var(--cream); border: 2px solid var(--line); border-radius: 7px; }
+.export-tabs button.active { color: #fff7e6; background: var(--accent-d); border-color: var(--ink); }
+.export-meta { font-size: 12px; line-height: 1.6; color: var(--ink2); }
+.export-meta b { color: var(--accent-d); }
+.export-text {
+  width: 100%;
+  min-height: 320px;
+  max-height: 48dvh;
+  resize: vertical;
+  overflow: auto;
+  font-family: var(--read);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  background: #fffdf4;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 10px 11px;
+  white-space: pre-wrap;
+}
+
 /* ===== 侦查布局（办公室 + 线索笔记本 + 诊断）===== */
 .invest { max-width: min(1520px, 97vw); margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 100dvh; justify-content: center; }
 .invest-top { display: flex; align-items: center; gap: 14px; padding: 10px 16px; flex-wrap: wrap; }
@@ -274,6 +300,8 @@ img { image-rendering: pixelated; }
   .prog { flex-wrap: wrap; justify-content: center; gap: 6px; }
   .prog span { font-size: 11px; padding: 4px 8px; }
   .restart-btn { font-size: 11px; padding: 4px 8px; }
+  .export-modal { max-height: 88dvh; }
+  .export-text { min-height: 260px; max-height: 44dvh; font-size: 12px; }
   .stage { padding: 5px; }
   /* 线索板默认折叠成一条，点标题展开；聊天区占满 */
   .note { max-height: 46dvh; }
