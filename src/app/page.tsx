@@ -51,9 +51,14 @@ export default function Home() {
           </ol>
         </div>
 
-        <Link href="/play" className="btn btn-accent title-start" onClick={() => sfx("open")}>
-          ▶ 进办公室
-        </Link>
+        <div className="title-cta-row">
+          <Link href="/play" className="btn btn-accent title-start" onClick={() => sfx("open")}>
+            ▶ 进办公室
+          </Link>
+          <Link href="/plugin" className="btn title-plugin-link">
+            看插件切片
+          </Link>
+        </div>
         <p className="title-foot">每个人只知道自己那摊事，没人知道全部真相 · 问对人，问对问题</p>
       </div>
     </main>

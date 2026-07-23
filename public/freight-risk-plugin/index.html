@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>货代对单/做账防错插件</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>货代对单/做账防错插件</h1>
+        <p>旁路复核工具：机器先找错、找漏、找风险，人做最终确认。</p>
+      </div>
+      <div class="header-actions">
+        <button id="loadSampleBtn" class="secondary">载入样例</button>
+        <button id="clearBtn" class="ghost">清空</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="side-panel">
+        <nav class="tabs" aria-label="检查模块">
+          <button class="tab active" data-tab="check-docs">对单防错</button>
+          <button class="tab" data-tab="check-ledger">做账防漏</button>
+          <button class="tab" data-tab="rules">规则说明</button>
+        </nav>
+
+        <section class="status-box">
+          <h2>当前原则</h2>
+          <ul>
+            <li>不替换原系统</li>
+            <li>不自动提交船司</li>
+            <li>不自动入账</li>
+            <li>不自动放单</li>
+            <li>每条风险带证据</li>
+          </ul>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <section id="check-docs" class="tab-panel active">
+          <div class="panel-head">
+            <div>
+              <h2>对单差异检查</h2>
+              <p>粘贴 SI/补料、HBL、MBL 文本，检查高风险字段差异和字符级错误。</p>
+            </div>
+            <button id="runDocsBtn" class="primary">开始对单检查</button>
+          </div>
+
+          <div class="input-grid">
+            <label class="field">
+              <span>SI / 客户补料</span>
+              <textarea id="siInput" spellcheck="false" placeholder="示例：Consignee: ABC TRADING CO., LTD&#10;Gross Weight: 18500 KGS"></textarea>
+            </label>
+            <label class="field">
+              <span>HBL</span>
+              <textarea id="hblInput" spellcheck="false" placeholder="粘贴 HBL 草稿文本"></textarea>
+            </label>
+            <label class="field">
+              <span>MBL</span>
+              <textarea id="mblInput" spellcheck="false" placeholder="粘贴 MBL 草稿文本"></textarea>
+            </label>
+          </div>
+
+          <div id="docsSummary" class="summary-row"></div>
+          <div class="report-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>级别</th>
+                  <th>字段</th>
+                  <th>来源 A</th>
+                  <th>来源 B</th>
+                  <th>差异说明</th>
+                  <th>建议动作</th>
+                </tr>
+              </thead>
+              <tbody id="docsReport"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="check-ledger" class="tab-panel">
+          <div class="panel-head">
+            <div>
+              <h2>做账漏费检查</h2>
+              <p>粘贴签费、USD/RMB DN、供应商账单和操作备注，检查疑似漏收、漏录、未确认费用。</p>
+            </div>
+            <button id="runLedgerBtn" class="primary">开始费用检查</button>
+          </div>
+
+          <div class="input-grid ledger-grid">
+            <label class="field">
+              <span>签费 / 客户确认</span>
+              <textarea id="signedFeeInput" spellcheck="false" placeholder="示例：Ocean Freight USD 800&#10;Doc Fee RMB 450"></textarea>
+            </label>
+            <label class="field">
+              <span>USD DN</span>
+              <textarea id="usdDnInput" spellcheck="false" placeholder="粘贴 USD Debit Note"></textarea>
+            </label>
+            <label class="field">
+              <span>RMB DN</span>
+              <textarea id="rmbDnInput" spellcheck="false" placeholder="粘贴 RMB Debit Note"></textarea>
+            </label>
+            <label class="field">
+              <span>供应商账单 / 船司账单</span>
+              <textarea id="vendorBillInput" spellcheck="false" placeholder="粘贴船司、车队、报关行账单"></textarea>
+            </label>
+            <label class="field wide">
+              <span>操作备注 / 异常记录</span>
+              <textarea id="opsNoteInput" spellcheck="false" placeholder="示例：客户改单一次，船司收 amendment fee USD 50；已电放。"></textarea>
+            </label>
+          </div>
+
+          <div id="ledgerSummary" class="summary-row"></div>
+          <div class="report-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>级别</th>
+                  <th>类型</th>
+                  <th>发现内容</th>
+                  <th>当前状态</th>
+                  <th>风险</th>
+                  <th>建议动作</th>
+                </tr>
+              </thead>
+              <tbody id="ledgerReport"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="rules" class="tab-panel">
+          <div class="panel-head">
+            <div>
+              <h2>内置防错规则</h2>
+              <p>第一版先用可解释规则。后续可以接 AI 抽取非结构化 PDF、邮件和聊天记录。</p>
+            </div>
+          </div>
+
+          <div class="rules-grid">
+            <article>
+              <h3>红灯</h3>
+              <p>公司名、地址、件毛体、港口、柜封号、运费条款、放单方式等关键字段冲突。</p>
+            </article>
+            <article>
+              <h3>黄灯</h3>
+              <p>签费、DN、供应商账单金额不一致；异常事件出现但费用证据不完整。</p>
+            </article>
+            <article>
+              <h3>提示</h3>
+              <p>MBL/HBL 抬头不同、报价与签费不同、非欧盟无 ICS2、正本不收电放费等合法预期差异。</p>
+            </article>
+          </div>
+
+          <div class="note">
+            <strong>责任边界：</strong>插件只输出检查报告和证据，不做最终确认。所有提交、入账、放单动作仍由原责任人按原流程执行。
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
