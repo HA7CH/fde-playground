@@ -41,10 +41,30 @@ async function* streamCompletion(system: string, messages: ChatMessage[]): Async
   }
 }
 
+/**
+ * 身份一致性提醒：
+ * 防止多轮对话后模型弱化角色姓名、职位和背景。
+ */
+function identityReminder(persona: Persona) {
+  return `
+【身份一致性提醒】
+你始终保持以下身份：
+
+姓名：${persona.name}
+职位：${persona.title}
+
+规则：
+- 不要忘记自己的名字和职位。
+- 不要改变自己的工作背景。
+- 多轮对话中始终以该角色视角回答。
+- 即使对话很长，也不要出现身份漂移。
+`;
+}
+
 /** 角色对话（拼上隐藏线索标记说明）。无 key 时走 mock。 */
 export async function* streamChat(persona: Persona, messages: ChatMessage[]): AsyncGenerator<string> {
   if (!API_KEY) { yield* mockStream(persona, messages); return; }
-  yield* streamCompletion(persona.system + clueInstruction(persona), messages);
+  yield* streamCompletion(persona.system + identityReminder(persona) + clueInstruction(persona),messages);
 }
 
 /** 诊断复盘（主管对照真答案点评）。无 key 时走 mock。 */
